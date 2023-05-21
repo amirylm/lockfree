@@ -17,6 +17,7 @@ func TestStack_PushPop(t *testing.T) {
 		val, ok := s.Pop()
 		require.True(t, ok)
 		require.Equal(t, nitems-(i+1)+1, *val)
+		require.Equal(t, nitems-(i+1), s.Len())
 	}
 	require.Equal(t, 0, s.Len())
 }
