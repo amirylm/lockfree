@@ -7,7 +7,6 @@ on:
     branches: [ "*" ]
 
 jobs:
-
   ### TODO
   #docker:
 
@@ -29,3 +28,4 @@ jobs:
       
     - name: Build
       run: make build
+      
