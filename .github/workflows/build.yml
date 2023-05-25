@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "*" ]
+    branches: [ "*-rc" ]
 
 jobs:
   bin:
@@ -27,4 +27,3 @@ jobs:
       
     - name: Build
       run: make build
-      
