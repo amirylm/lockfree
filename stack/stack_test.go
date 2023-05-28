@@ -83,7 +83,7 @@ func TestStack_Concurrency(t *testing.T) {
 	pctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*2))
 	defer cancel()
 
-	common.DoConcurrencyCheck(pctx, t, &wrapper[[]byte]{stack: New[[]byte](128)}, 100)
+	common.DoConcurrencyCheck(pctx, t, &wrapper[[]byte]{stack: New[[]byte](128)}, 100, 1, 1)
 }
 
 type wrapper[Value any] struct {

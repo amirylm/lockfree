@@ -19,45 +19,36 @@ type Collection[Value any] interface {
 	IsEmpty() bool
 }
 
-func DoConcurrencyCheck(pctx context.Context, t *testing.T, coll Collection[[]byte], n int) {
-	sendSig := make(chan bool, 4)
+func DoConcurrencyCheck(pctx context.Context, t *testing.T, coll Collection[[]byte], n, readers, writers int) {
 	counter := int64(0)
 
-	go func() {
-		ctx, cancel := context.WithCancel(pctx)
-		defer cancel()
-
-		for {
-			select {
-			case <-sendSig:
+	for i := 0; i < writers; i++ {
+		go func() {
+			for i := 0; i < n; i++ {
 				data := fmt.Sprintf("%x", rand.Intn(100_000_000))
 				dataB := []byte(data)
 				require.NoError(t, coll.Store(dataB))
-			case <-ctx.Done():
-				return
 			}
-		}
-	}()
+		}()
+	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for pctx.Err() == nil {
-			if coll.IsEmpty() {
-				runtime.Gosched()
-				continue
+	for i := 0; i < readers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for pctx.Err() == nil {
+				if coll.IsEmpty() {
+					runtime.Gosched()
+					continue
+				}
+				_, err := coll.Read()
+				require.NoError(t, err)
+				if atomic.AddInt64(&counter, 1) == int64(n) {
+					return
+				}
 			}
-			_, err := coll.Read()
-			require.NoError(t, err)
-			if atomic.AddInt64(&counter, 1) == int64(n) {
-				return
-			}
-		}
-	}()
-
-	for i := 0; i < n; i++ {
-		sendSig <- true
+		}()
 	}
 
 	wg.Wait()
