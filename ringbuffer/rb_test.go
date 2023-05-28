@@ -2,14 +2,10 @@ package ringbuffer
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
-	"runtime"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/amirylm/lockfree/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,50 +33,29 @@ func TestRingBuffer_Concurrency(t *testing.T) {
 	pctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*2))
 	defer cancel()
 
-	sendSig := make(chan bool, 4)
+	common.DoConcurrencyCheck(pctx, t, &wrapper[[]byte]{rb: New[[]byte](128)}, 100)
+}
 
-	n := 100
-	q := New[[]byte](128)
-	counter := int64(0)
+type wrapper[Value any] struct {
+	rb *RingBuffer[Value]
+}
 
-	go func() {
-		ctx, cancel := context.WithCancel(pctx)
-		defer cancel()
+func (w *wrapper[Value]) Store(v Value) error {
+	return w.rb.Enqueue(v)
+}
 
-		for {
-			select {
-			case <-sendSig:
-				data := fmt.Sprintf("%x", rand.Intn(100_000_000))
-				dataB := []byte(data)
-				require.NoError(t, q.Enqueue(dataB))
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for pctx.Err() == nil {
-			if q.IsEmpty() {
-				runtime.Gosched()
-				continue
-			}
-			_, err := q.Dequeue()
-			require.NoError(t, err)
-			if atomic.AddInt64(&counter, 1) == int64(n) {
-				return
-			}
-		}
-	}()
-
-	for i := 0; i < n; i++ {
-		sendSig <- true
+func (w *wrapper[Value]) Read() (*Value, error) {
+	v, err := w.rb.Dequeue()
+	if err != nil {
+		return nil, err
 	}
+	return &v, nil
+}
 
-	wg.Wait()
+func (w *wrapper[Value]) Len() int {
+	return w.rb.Len()
+}
 
-	require.Equal(t, int64(n), atomic.LoadInt64(&counter))
+func (w *wrapper[Value]) IsEmpty() bool {
+	return w.rb.IsEmpty()
 }

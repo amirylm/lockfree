@@ -9,8 +9,8 @@ import (
 // NOTE: WIP
 
 var (
-	ErrBufferIsEmpty = errors.New("buffer is empty")
-	ErrBufferIsFull  = errors.New("buffer is full")
+	ErrBufferIsEmpty  = errors.New("buffer is empty")
+	ErrBufferOverflow = errors.New("buffer overflow")
 )
 
 func New[V any](c int) *RingBuffer[V] {
@@ -45,7 +45,7 @@ func (rb *RingBuffer[V]) Enqueue(v V) error {
 	originalState := rb.state.Load()
 	state := newState(originalState)
 	if state.full {
-		return ErrBufferIsFull
+		return ErrBufferOverflow
 	}
 	i := state.tail % rb.capacity
 	state.tail++
