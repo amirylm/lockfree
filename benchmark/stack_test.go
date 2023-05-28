@@ -12,7 +12,7 @@ func BenchmarkStack(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		s.Push(i)
+		_ = s.Push(i)
 		_, _ = s.Pop()
 	}
 }

@@ -32,7 +32,7 @@ func TestQueue_Range(t *testing.T) {
 	nitems := 10
 	s := New[int](nitems * 2)
 	for i := 0; i < nitems; i++ {
-		s.Push(i + 1)
+		require.NoError(t, s.Push(i+1))
 	}
 
 	tests := []struct {
