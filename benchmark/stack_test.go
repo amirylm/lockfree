@@ -7,7 +7,7 @@ import (
 )
 
 func BenchmarkStack(b *testing.B) {
-	s := stack.New[int](32)
+	s := stack.New[int]()
 
 	b.ReportAllocs()
 	b.ResetTimer()
