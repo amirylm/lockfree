@@ -6,7 +6,7 @@ import (
 	"github.com/amirylm/lockfree/queue"
 )
 
-func BenchmarkStack(b *testing.B) {
+func BenchmarkQueue(b *testing.B) {
 	s := queue.New[int]()
 
 	b.ReportAllocs()

@@ -33,7 +33,7 @@ func (q *Queue[Value]) Push(value Value) {
 		t := q.tail.Load()
 		if t == nil {
 			q.head.Store(&e)
-			q.tail = q.head
+			q.tail.Store(q.head.Load())
 			break
 		}
 		(*t).next.Store(&e)
