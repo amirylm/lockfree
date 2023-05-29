@@ -11,7 +11,7 @@ fmt:
 	@go fmt ./...
 
 test:
-	@go test -v -timeout=10m ${TEST_PKG} 
+	@go test -v -race -timeout=10m ${TEST_PKG} 
 
 bench:
 	@go test -benchmem -bench ^Benchmark* ./benchmark/...
