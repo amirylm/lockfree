@@ -10,8 +10,9 @@ func TestQueue_PushPop(t *testing.T) {
 	numitems := 10
 	q := New[int](int32(numitems))
 	for i := 0; i < numitems; i++ {
-		q.Push(i + 1)
+		require.NoError(t, q.Push(i+1))
 	}
+	// require.Error(t, q.Push(numitems+1)) // TODO
 	require.Equal(t, numitems, q.Size())
 	for i := 0; i < numitems; i++ {
 		val, ok := q.Pop()
@@ -26,7 +27,7 @@ func TestQueue_Range(t *testing.T) {
 	numitems := 10
 	q := New[int](int32(numitems))
 	for i := 0; i < numitems; i++ {
-		q.Push(i + 1)
+		require.NoError(t, q.Push(i+1))
 	}
 
 	tests := []struct {
