@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -17,15 +16,15 @@ func TestStack_PushPop(t *testing.T) {
 		require.NoError(t, s.Push(i+1))
 	}
 	require.Error(t, s.Push(11))
-	require.True(t, s.IsFull())
-	require.Equal(t, nitems, s.Len())
+	require.True(t, s.Full())
+	require.Equal(t, nitems, s.Size())
 	for i := 0; i < nitems; i++ {
 		val, ok := s.Pop()
 		require.True(t, ok)
-		require.Equal(t, nitems-(i+1)+1, *val)
-		require.Equal(t, nitems-(i+1), s.Len())
+		require.Equal(t, nitems-(i+1)+1, val)
+		require.Equal(t, nitems-(i+1), s.Size())
 	}
-	require.Equal(t, 0, s.Len())
+	require.Equal(t, 0, s.Size())
 }
 
 func TestQueue_Range(t *testing.T) {
@@ -83,29 +82,5 @@ func TestStack_Concurrency(t *testing.T) {
 	pctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*2))
 	defer cancel()
 
-	common.DoConcurrencyCheck(pctx, t, &wrapper[[]byte]{stack: New[[]byte](128)}, 100, 1, 1)
-}
-
-type wrapper[Value any] struct {
-	stack *Stack[Value]
-}
-
-func (w *wrapper[Value]) Store(v Value) error {
-	return w.stack.Push(v)
-}
-
-func (w *wrapper[Value]) Read() (*Value, error) {
-	v, ok := w.stack.Pop()
-	if !ok {
-		return nil, errors.New("err")
-	}
-	return v, nil
-}
-
-func (w *wrapper[Value]) Len() int {
-	return w.stack.Len()
-}
-
-func (w *wrapper[Value]) IsEmpty() bool {
-	return w.stack.Len() == 0
+	common.DoConcurrencyCheck(pctx, t, New[[]byte](128), 100, 1, 1)
 }
