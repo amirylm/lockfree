@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/queue"
 	"github.com/amirylm/lockfree/ringbuffer"
 	"github.com/amirylm/lockfree/stack"
 )
@@ -20,6 +21,10 @@ func BenchmarkInt_PushPop(b *testing.B) {
 		{
 			"stack",
 			stack.New[int](128),
+		},
+		{
+			"queue",
+			queue.New[int](128),
 		},
 	}
 

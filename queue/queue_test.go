@@ -8,23 +8,23 @@ import (
 
 func TestQueue_PushPop(t *testing.T) {
 	numitems := 10
-	q := New[int]()
+	q := New[int](int32(numitems))
 	for i := 0; i < numitems; i++ {
 		q.Push(i + 1)
 	}
-	require.Equal(t, numitems, q.Len())
+	require.Equal(t, numitems, q.Size())
 	for i := 0; i < numitems; i++ {
 		val, ok := q.Pop()
 		require.True(t, ok)
-		require.Equal(t, (i + 1), *val)
-		require.Equal(t, numitems-(i+1), q.Len())
+		require.Equal(t, (i + 1), val)
+		require.Equal(t, numitems-(i+1), q.Size())
 	}
-	require.Equal(t, 0, q.Len())
+	require.Equal(t, 0, q.Size())
 }
 
 func TestQueue_Range(t *testing.T) {
 	numitems := 10
-	q := New[int]()
+	q := New[int](int32(numitems))
 	for i := 0; i < numitems; i++ {
 		q.Push(i + 1)
 	}

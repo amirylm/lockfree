@@ -27,7 +27,7 @@ func TestStack_PushPop(t *testing.T) {
 	require.Equal(t, 0, s.Size())
 }
 
-func TestQueue_Range(t *testing.T) {
+func TestStack_Range(t *testing.T) {
 	nitems := 10
 	s := New[int](nitems * 2)
 	for i := 0; i < nitems; i++ {
