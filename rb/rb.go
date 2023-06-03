@@ -1,0 +1,85 @@
+package rb
+
+import (
+	"errors"
+	"sync"
+)
+
+// NOTE: WIP
+
+var (
+	ErrBufferIsEmpty  = errors.New("buffer is empty")
+	ErrBufferOverflow = errors.New("buffer overflow")
+)
+
+func New[V any](c int) *RingBufferLock[V] {
+	rb := &RingBufferLock[V]{
+		lock:     &sync.RWMutex{},
+		data:     make([]V, c),
+		capacity: uint32(c),
+	}
+
+	return rb
+}
+
+type RingBufferLock[V any] struct {
+	lock *sync.RWMutex
+
+	data []V
+
+	state    ringBufferState
+	capacity uint32
+}
+
+func (rb *RingBufferLock[V]) Empty() bool {
+	return newState(rb.state).Empty()
+}
+
+func (rb *RingBufferLock[V]) Full() bool {
+	return newState(rb.state).Full()
+}
+
+// Push adds a new item to the buffer.
+// In case of some conflict with other goroutine, we revert changes and call retry.
+func (rb *RingBufferLock[V]) Push(v V) error {
+	rb.lock.Lock()
+	defer rb.lock.Unlock()
+
+	// originalState := rb.state
+	state := rb.state
+	if state.full {
+		return ErrBufferOverflow
+	}
+	i := state.tail % rb.capacity
+	rb.state.tail++
+	rb.state.full = (rb.state.tail%rb.capacity == state.head%rb.capacity)
+	rb.data[i] = v
+	// rb.state = state
+
+	return nil
+}
+
+// Enqueue pops the next item in the buffer.
+// In case of some conflict with other goroutine, we revert changes and call retry.
+func (rb *RingBufferLock[V]) Pop() (V, bool) {
+	rb.lock.Lock()
+	defer rb.lock.Unlock()
+
+	var empty V
+	state := rb.state
+	if !state.full && (state.tail%rb.capacity == state.head%rb.capacity) {
+		return empty, false
+	}
+	i := state.head % rb.capacity
+	v := rb.data[i]
+	rb.state.head++
+	rb.state.full = false
+	rb.data[i] = empty
+
+	return v, true
+}
+
+func (rb *RingBufferLock[Value]) Size() int {
+	state := rb.state
+	return int(state.tail - state.head)
+}
