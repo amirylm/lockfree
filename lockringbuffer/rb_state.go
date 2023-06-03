@@ -1,11 +1,14 @@
-package rb
+package lockringbuffer
 
 type ringBufferState struct {
 	head, tail uint32
 	full       bool
 }
 
-func newState(previous ringBufferState) ringBufferState {
+func newState(previous *ringBufferState) ringBufferState {
+	if previous == nil {
+		previous = new(ringBufferState)
+	}
 	return ringBufferState{
 		head: previous.head,
 		tail: previous.tail,

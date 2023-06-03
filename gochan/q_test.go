@@ -1,4 +1,4 @@
-package rb
+package gochan
 
 import (
 	"context"
@@ -9,27 +9,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRingBuffer_EnqueueDequeue(t *testing.T) {
+func TestGoChanQ_EnqueueDequeue(t *testing.T) {
 	nitems := 10
-	rb := New[int](nitems)
+	q := New[int](nitems)
 	for i := 0; i < nitems; i++ {
 		d := i + 1
-		require.NoError(t, rb.Push(d), d)
+		require.NoError(t, q.Push(d))
 	}
-	require.Error(t, rb.Push(11))
-	require.Equal(t, nitems, rb.Size())
+	require.Error(t, q.Push(11))
+	require.Equal(t, nitems, q.Size())
 	for i := 0; i < nitems; i++ {
-		val, ok := rb.Pop()
+		val, ok := q.Pop()
 		require.True(t, ok, i)
 		require.NotNil(t, val, i)
 		require.Equal(t, i+1, val)
-		require.Equal(t, nitems-(i+1), rb.Size())
+		require.Equal(t, nitems-(i+1), q.Size())
 	}
-	require.Equal(t, 0, rb.Size())
-	require.NoError(t, rb.Push(1))
+	require.Equal(t, 0, q.Size())
+	require.NoError(t, q.Push(1))
 }
 
-func TestRingBuffer_Concurrency(t *testing.T) {
+func TestGoChanQ_Concurrency(t *testing.T) {
 	pctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*2))
 	defer cancel()
 

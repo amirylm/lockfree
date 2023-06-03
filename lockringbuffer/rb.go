@@ -1,4 +1,4 @@
-package rb
+package lockringbuffer
 
 import (
 	"errors"
@@ -12,8 +12,8 @@ var (
 	ErrBufferOverflow = errors.New("buffer overflow")
 )
 
-func New[V any](c int) *RingBufferLock[V] {
-	rb := &RingBufferLock[V]{
+func New[V any](c int) *LockRingBuffer[V] {
+	rb := &LockRingBuffer[V]{
 		lock:     &sync.RWMutex{},
 		data:     make([]V, c),
 		capacity: uint32(c),
@@ -22,7 +22,7 @@ func New[V any](c int) *RingBufferLock[V] {
 	return rb
 }
 
-type RingBufferLock[V any] struct {
+type LockRingBuffer[V any] struct {
 	lock *sync.RWMutex
 
 	data []V
@@ -31,17 +31,23 @@ type RingBufferLock[V any] struct {
 	capacity uint32
 }
 
-func (rb *RingBufferLock[V]) Empty() bool {
-	return newState(rb.state).Empty()
+func (rb *LockRingBuffer[V]) Empty() bool {
+	rb.lock.RLock()
+	defer rb.lock.RUnlock()
+
+	return rb.state.Empty()
 }
 
-func (rb *RingBufferLock[V]) Full() bool {
-	return newState(rb.state).Full()
+func (rb *LockRingBuffer[V]) Full() bool {
+	rb.lock.RLock()
+	defer rb.lock.RUnlock()
+
+	return rb.state.Full()
 }
 
 // Push adds a new item to the buffer.
 // In case of some conflict with other goroutine, we revert changes and call retry.
-func (rb *RingBufferLock[V]) Push(v V) error {
+func (rb *LockRingBuffer[V]) Push(v V) error {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
@@ -51,17 +57,17 @@ func (rb *RingBufferLock[V]) Push(v V) error {
 		return ErrBufferOverflow
 	}
 	i := state.tail % rb.capacity
-	rb.state.tail++
-	rb.state.full = (rb.state.tail%rb.capacity == state.head%rb.capacity)
+	state.tail++
+	state.full = (state.tail%rb.capacity == state.head%rb.capacity)
 	rb.data[i] = v
-	// rb.state = state
+	rb.state = state
 
 	return nil
 }
 
 // Enqueue pops the next item in the buffer.
 // In case of some conflict with other goroutine, we revert changes and call retry.
-func (rb *RingBufferLock[V]) Pop() (V, bool) {
+func (rb *LockRingBuffer[V]) Pop() (V, bool) {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
@@ -72,14 +78,18 @@ func (rb *RingBufferLock[V]) Pop() (V, bool) {
 	}
 	i := state.head % rb.capacity
 	v := rb.data[i]
-	rb.state.head++
-	rb.state.full = false
+	state.head++
+	state.full = false
 	rb.data[i] = empty
+	rb.state = state
 
 	return v, true
 }
 
-func (rb *RingBufferLock[Value]) Size() int {
+func (rb *LockRingBuffer[Value]) Size() int {
+	rb.lock.RLock()
+	defer rb.lock.RUnlock()
+
 	state := rb.state
 	return int(state.tail - state.head)
 }
