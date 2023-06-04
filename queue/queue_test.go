@@ -1,32 +1,42 @@
 package queue
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/amirylm/lockfree/common"
 	"github.com/stretchr/testify/require"
 )
 
-func TestQueue_PushPop(t *testing.T) {
-	numitems := 10
-	q := New[int]()
-	for i := 0; i < numitems; i++ {
-		q.Push(i + 1)
-	}
-	require.Equal(t, numitems, q.Len())
-	for i := 0; i < numitems; i++ {
-		val, ok := q.Pop()
-		require.True(t, ok)
-		require.Equal(t, (i + 1), *val)
-		require.Equal(t, numitems-(i+1), q.Len())
-	}
-	require.Equal(t, 0, q.Len())
+func TestLinkedListQueue_Sanity_Int(t *testing.T) {
+	common.SanityTest(t, 32, func(capacity int) common.DataStructure[int] {
+		return New[int](capacity)
+	}, func(i int) int {
+		return i + 1
+	}, func(i, v int) bool {
+		return v == i+1
+	})
 }
 
-func TestQueue_Range(t *testing.T) {
+func TestLinkedListQueue_Concurrency_Bytes(t *testing.T) {
+	pctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+
+	common.ConcurrencyTest(t, pctx, 128, 128, 1, 1, func(capacity int) common.DataStructure[[]byte] {
+		return New[[]byte](capacity)
+	}, func(i int) []byte {
+		return []byte{1, 1, 1, 1}
+	}, func(i int, v []byte) bool {
+		return len(v) == 4 && v[0] == 1
+	})
+}
+
+func TestLinkedListQueue_Range(t *testing.T) {
 	numitems := 10
-	q := New[int]()
+	q := New[int](numitems)
 	for i := 0; i < numitems; i++ {
-		q.Push(i + 1)
+		require.True(t, q.Push(i+1))
 	}
 
 	tests := []struct {

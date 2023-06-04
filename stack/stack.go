@@ -1,60 +1,78 @@
 package stack
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+)
 
 // element is an item in the stack.
 // It contains a pointer to the value + the next element.
 type element[Value any] struct {
 	value atomic.Pointer[Value]
-	next  atomic.Pointer[*element[Value]]
+	next  atomic.Pointer[element[Value]]
 }
 
 // Stack is a lock-free stack implementation,
 // based on atomic compare-and-swap operations.
 type Stack[Value any] struct {
-	head atomic.Pointer[*element[Value]]
+	head     atomic.Pointer[element[Value]]
+	size     atomic.Int32
+	capacity int32
 }
 
 // New creates a new lock-free stack.
-func New[Value any]() *Stack[Value] {
-	return &Stack[Value]{}
+func New[Value any](capacity int) *Stack[Value] {
+	return &Stack[Value]{
+		head:     atomic.Pointer[element[Value]]{},
+		size:     atomic.Int32{},
+		capacity: int32(capacity),
+	}
 }
 
 // Push adds a new value to the stack.
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (s *Stack[Value]) Push(value Value) {
+func (s *Stack[Value]) Push(value Value) bool {
+	if s.Full() {
+		return false
+	}
+
 	e := &element[Value]{}
 	e.value.Store(&value)
 
 	for {
 		h := s.head.Load()
 		e.next.Store(h)
-		if s.head.CompareAndSwap(h, &e) {
+		if s.head.CompareAndSwap(h, e) {
+			_ = s.size.Add(1)
 			break
 		}
 	}
+	return true
 }
 
 // Pop removes the next value from the stack.
 // returns false in case the stack wasn't changed,
 // which could happen if the stack is empty or
 // if there was a conflict with concurrent Pop()/Push() operation.
-func (s *Stack[Value]) Pop() (*Value, bool) {
+func (s *Stack[Value]) Pop() (Value, bool) {
+	var val Value
 	h := s.head.Load()
 	if h == nil {
-		return nil, false
+		return val, false
 	}
-	changed := s.head.CompareAndSwap(h, (*h).next.Load())
-	return (*h).value.Load(), changed
+	next, value := (*h).next.Load(), (*h).value.Load()
+	changed := s.head.CompareAndSwap(h, next)
+	if changed {
+		_ = s.size.Add(-1)
+	}
+	if value != nil {
+		val = *value
+	}
+	return val, changed
 }
 
 // Range iterates over the stack, accepts a custom iterator that returns true to stop.
 func (s *Stack[Value]) Range(iterator func(val Value) bool) {
-	currentP := s.head.Load()
-	if currentP == nil {
-		return
-	}
-	current := *currentP
+	current := s.head.Load()
 	for current != nil {
 		var val Value
 		valp := current.value.Load()
@@ -65,21 +83,21 @@ func (s *Stack[Value]) Range(iterator func(val Value) bool) {
 		if stop {
 			return
 		}
-		currentP := current.next.Load()
-		if currentP == nil {
-			return
-		}
-		current = *currentP
+		current = current.next.Load()
 	}
 }
 
+// Size returns the number of items in the stack.
+func (s *Stack[Value]) Size() int {
+	return int(s.size.Load())
+}
+
 // Len returns the number of items in the stack.
-// Utilizes Range() to count the items.
-func (s *Stack[Value]) Len() int {
-	var counter int
-	s.Range(func(val Value) bool {
-		counter++
-		return false
-	})
-	return counter
+func (s *Stack[Value]) Full() bool {
+	return s.size.Load() == s.capacity
+}
+
+// Len returns the number of items in the stack.
+func (s *Stack[Value]) Empty() bool {
+	return s.size.Load() == 0
 }

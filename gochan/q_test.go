@@ -1,4 +1,4 @@
-package ringbuffer
+package gochan
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/amirylm/lockfree/common"
 )
 
-func TestRingBuffer_Sanity_Int(t *testing.T) {
+func TestGoChanQ_Sanity_Int(t *testing.T) {
 	common.SanityTest(t, 32, func(capacity int) common.DataStructure[int] {
 		return New[int](capacity)
 	}, func(i int) int {
@@ -18,7 +18,7 @@ func TestRingBuffer_Sanity_Int(t *testing.T) {
 	})
 }
 
-func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
+func TestGoChanQ_Concurrency_Bytes(t *testing.T) {
 	pctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
@@ -27,7 +27,6 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 	}, func(i int) []byte {
 		return []byte{1, 1, 1, 1}
 	}, func(i int, v []byte) bool {
-		// return true
 		return len(v) == 4 && v[0] == 1
 	})
 }
