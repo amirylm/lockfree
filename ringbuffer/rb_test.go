@@ -27,7 +27,7 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 	}, func(i int) []byte {
 		return []byte{1, 1, 1, 1}
 	}, func(i int, v []byte) bool {
-		return true
-		// return len(v) == 4 && v[0] == 1
+		// return true
+		return len(v) == 4 && v[0] == 1
 	})
 }

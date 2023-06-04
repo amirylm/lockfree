@@ -2,7 +2,6 @@ package benchmark
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/amirylm/lockfree/common"
@@ -93,20 +92,98 @@ func BenchmarkInt_PushPop_RW(b *testing.B) {
 	}
 }
 
-func BenchmarkInt_PushPopConcurrentLoad(b *testing.B) {
+func BenchmarkInt_PushPop_RW_LRB(b *testing.B) {
 	tests := []concurrentTestCase[int]{
 		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
+			"ring buffer (lock)",
+			lockringbuffer.New[int](128),
 			3,
 			2,
 		},
 		{
 			"ring buffer (lock)",
 			lockringbuffer.New[int](128),
+			2,
+			3,
+		},
+		{
+			"ring buffer (lock)",
+			lockringbuffer.New[int](128),
+			5,
+			5,
+		},
+		{
+			"ring buffer (lock)",
+			lockringbuffer.New[int](128),
+			15,
+			2,
+		},
+		{
+			"ring buffer (lock)",
+			lockringbuffer.New[int](128),
+			15,
+			15,
+		},
+		{
+			"ring buffer (lock)",
+			lockringbuffer.New[int](128),
+			2,
+			15,
+		},
+	}
+
+	for _, tc := range tests {
+		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseInt(tc, b))
+	}
+}
+
+func BenchmarkInt_PushPop_RW_RB(b *testing.B) {
+	tests := []concurrentTestCase[int]{
+		{
+			"ring buffer",
+			ringbuffer.New[int](128),
 			3,
 			2,
 		},
+		{
+			"ring buffer",
+			ringbuffer.New[int](128),
+			2,
+			3,
+		},
+		{
+			"ring buffer",
+			ringbuffer.New[int](128),
+			5,
+			5,
+		},
+		{
+			"ring buffer",
+			ringbuffer.New[int](128),
+			15,
+			2,
+		},
+		{
+			"ring buffer",
+			ringbuffer.New[int](128),
+			15,
+			15,
+		},
+		{
+			"ring buffer",
+			ringbuffer.New[int](128),
+			2,
+			15,
+		},
+	}
+
+	for _, tc := range tests {
+		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseInt(tc, b))
+	}
+}
+
+func BenchmarkInt_PushPop_RW_Chan(b *testing.B) {
+	tests := []concurrentTestCase[int]{
 		{
 			"go channel",
 			gochan.New[int](128),
@@ -114,34 +191,10 @@ func BenchmarkInt_PushPopConcurrentLoad(b *testing.B) {
 			2,
 		},
 		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			2,
-			3,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
-			2,
-			3,
-		},
-		{
 			"go channel",
 			gochan.New[int](128),
 			2,
 			3,
-		},
-		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			5,
-			5,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
-			5,
-			5,
 		},
 		{
 			"go channel",
@@ -150,51 +203,15 @@ func BenchmarkInt_PushPopConcurrentLoad(b *testing.B) {
 			5,
 		},
 		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			15,
-			2,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
-			15,
-			2,
-		},
-		{
-			"go channel 15",
+			"go channel",
 			gochan.New[int](128),
 			15,
 			2,
-		},
-		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			15,
-			15,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
-			15,
-			15,
 		},
 		{
 			"go channel",
 			gochan.New[int](128),
 			15,
-			15,
-		},
-		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			2,
-			15,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
-			2,
 			15,
 		},
 		{
@@ -231,9 +248,7 @@ func testCaseInt(tc concurrentTestCase[int], b *testing.B) func(b *testing.B) {
 			for n > 0 {
 				n--
 				go func(i int) {
-					for !collection.Push(i) {
-						runtime.Gosched()
-					}
+					_ = collection.Push(i)
 				}(i)
 			}
 			n = tc.readers

@@ -1,7 +1,6 @@
 package ringbuffer
 
 import (
-	"runtime"
 	"sync/atomic"
 )
 
@@ -46,7 +45,7 @@ func (rb *RingBuffer[Value]) Size() int {
 }
 
 // Push adds a new item to the buffer.
-// In case of some conflict with other goroutine, we revert changes and call retry.
+// We revert changes and retry in case of some conflict with other goroutine.
 func (rb *RingBuffer[V]) Push(v V) bool {
 	originalState := rb.state.Load()
 	state := newState(originalState)
@@ -59,14 +58,13 @@ func (rb *RingBuffer[V]) Push(v V) bool {
 	orig := el.Swap(&v)
 	if !rb.state.CompareAndSwap(originalState, state) {
 		el.Store(orig)
-		runtime.Gosched()
 		return rb.Push(v)
 	}
 	return true
 }
 
 // Enqueue pops the next item in the buffer.
-// In case of some conflict with other goroutine, we revert changes and call retry.
+// We retry in case of some conflict with other goroutine.
 func (rb *RingBuffer[V]) Pop() (V, bool) {
 	originalState := rb.state.Load()
 	state := newState(rb.state.Load())
@@ -80,7 +78,6 @@ func (rb *RingBuffer[V]) Pop() (V, bool) {
 	val := el.Load()
 	if !rb.state.CompareAndSwap(originalState, state) {
 		// in case we have some conflict with another goroutine, retry.
-		runtime.Gosched()
 		return rb.Pop()
 	}
 	if val != nil {
