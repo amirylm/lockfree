@@ -2,8 +2,6 @@ package lockringbuffer
 
 import (
 	"sync"
-
-	"github.com/amirylm/lockfree/common"
 )
 
 // NOTE: WIP
@@ -43,14 +41,14 @@ func (rb *LockRingBuffer[V]) Full() bool {
 
 // Push adds a new item to the buffer.
 // In case of some conflict with other goroutine, we revert changes and call retry.
-func (rb *LockRingBuffer[V]) Push(v V) error {
+func (rb *LockRingBuffer[V]) Push(v V) bool {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
 	// originalState := rb.state
 	state := rb.state
 	if state.full {
-		return common.ErrOverflow
+		return false
 	}
 	i := state.tail % rb.capacity
 	state.tail++
@@ -58,7 +56,7 @@ func (rb *LockRingBuffer[V]) Push(v V) error {
 	rb.data[i] = v
 	rb.state = state
 
-	return nil
+	return true
 }
 
 // Enqueue pops the next item in the buffer.

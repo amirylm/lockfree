@@ -1,9 +1,5 @@
 package gochan
 
-import (
-	"github.com/amirylm/lockfree/common"
-)
-
 type GoChanQ[Value any] struct {
 	cn       chan Value
 	capacity int
@@ -16,13 +12,13 @@ func New[Value any](capacity int) *GoChanQ[Value] {
 	}
 }
 
-func (q *GoChanQ[Value]) Push(v Value) error {
+func (q *GoChanQ[Value]) Push(v Value) bool {
 	select {
 	case q.cn <- v:
-		return nil
+		return true
 	default:
 	}
-	return common.ErrOverflow
+	return false
 }
 
 func (q *GoChanQ[Value]) Pop() (Value, bool) {

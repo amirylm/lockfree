@@ -2,8 +2,6 @@ package stack
 
 import (
 	"sync/atomic"
-
-	"github.com/amirylm/lockfree/common"
 )
 
 // element is an item in the stack.
@@ -32,9 +30,9 @@ func New[Value any](capacity int) *Stack[Value] {
 
 // Push adds a new value to the stack.
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (s *Stack[Value]) Push(value Value) error {
+func (s *Stack[Value]) Push(value Value) bool {
 	if s.Full() {
-		return common.ErrOverflow
+		return false
 	}
 
 	e := &element[Value]{}
@@ -48,7 +46,7 @@ func (s *Stack[Value]) Push(value Value) error {
 			break
 		}
 	}
-	return nil
+	return true
 }
 
 // Pop removes the next value from the stack.

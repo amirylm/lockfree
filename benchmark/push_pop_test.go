@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/amirylm/lockfree/common"
@@ -16,7 +17,7 @@ import (
 func BenchmarkInt_PushPop_Single(b *testing.B) {
 	tests := []struct {
 		name       string
-		collection common.LockFreeCollection[int]
+		collection common.DataStructure[int]
 	}{
 		{
 			"ring buffer",
@@ -84,27 +85,6 @@ func BenchmarkInt_PushPop_RW(b *testing.B) {
 			gochan.New[int](128),
 			1,
 			1,
-		},
-	}
-
-	for _, tc := range tests {
-		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseInt(tc, b))
-	}
-}
-
-func BenchmarkInt_PushPop_RW_Multiple(b *testing.B) {
-	tests := []concurrentTestCase[int]{
-		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			3,
-			2,
-		},
-		{
-			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			3,
-			2,
 		},
 	}
 
@@ -235,23 +215,24 @@ func testName(name string, r, w int) string {
 }
 
 type concurrentTestCase[V any] struct {
-	name       string
-	collection common.LockFreeCollection[V]
-	readers    int
-	writers    int
+	name    string
+	ds      common.DataStructure[V]
+	readers int
+	writers int
 }
 
 func testCaseInt(tc concurrentTestCase[int], b *testing.B) func(b *testing.B) {
 	return func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
-		collection := tc.collection
+		collection := tc.ds
 		for i := 0; i < b.N; i++ {
 			n := tc.writers
 			for n > 0 {
 				n--
 				go func(i int) {
-					for collection.Push(i) != nil {
+					for !collection.Push(i) {
+						runtime.Gosched()
 					}
 				}(i)
 			}

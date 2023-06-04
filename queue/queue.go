@@ -17,11 +17,11 @@ type Queue[Value any] struct {
 	head atomic.Pointer[element[Value]]
 	tail atomic.Pointer[element[Value]]
 
-	capacity int32
+	capacity int
 }
 
 // New creates a new lock-free queue.
-func New[Value any](capacity int32) *Queue[Value] {
+func New[Value any](capacity int) *Queue[Value] {
 	return &Queue[Value]{
 		head:     atomic.Pointer[element[Value]]{},
 		tail:     atomic.Pointer[element[Value]]{},
@@ -31,7 +31,10 @@ func New[Value any](capacity int32) *Queue[Value] {
 
 // Push adds a new value to the end of the queue.
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (q *Queue[Value]) Push(value Value) error {
+func (q *Queue[Value]) Push(value Value) bool {
+	if q.Full() {
+		return false
+	}
 	e := &element[Value]{}
 	e.value.Store(&value)
 
@@ -47,7 +50,7 @@ func (q *Queue[Value]) Push(value Value) error {
 			break
 		}
 	}
-	return nil
+	return true
 }
 
 // Pop removes the first value from the queue.

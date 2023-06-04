@@ -5,29 +5,42 @@ type ringBufferState struct {
 	full       bool
 }
 
-func newState(state uint64) *ringBufferState {
-	full := (state & 0x40000000) != 0
-	head := uint32((state >> 32) & 0x3FFFFFFF)
-	tail := uint32(state & 0x3FFFFFFF)
-	return &ringBufferState{
-		head: head,
-		tail: tail,
-		full: full,
+func newState(prev *ringBufferState) *ringBufferState {
+	state := new(ringBufferState)
+	if prev != nil {
+		state.full = prev.full
+		state.head = prev.head
+		state.tail = prev.tail
 	}
+	return state
 }
 
-func (state *ringBufferState) Uint64() uint64 {
-	fullBit := uint64(0)
-	if state.full {
-		fullBit = 0x40000000
-	}
-
-	headBits := uint64(state.head) << 32
-	tailBits := uint64(state.tail)
-
-	return 0x80000000 | fullBit | headBits | tailBits
+func (state *ringBufferState) SetFull(full bool) {
+	state.full = full
 }
 
-func (state *ringBufferState) IsEmpty() bool {
+func (state *ringBufferState) BumpTail() uint32 {
+	state.tail++
+	return state.tail
+}
+
+func (state *ringBufferState) BumpHead() uint32 {
+	state.head++
+	return state.head
+}
+
+func (state *ringBufferState) Tail() uint32 {
+	return state.tail
+}
+
+func (state *ringBufferState) Head() uint32 {
+	return state.head
+}
+
+func (state *ringBufferState) Full() bool {
+	return state.full
+}
+
+func (state *ringBufferState) Empty() bool {
 	return !state.full && state.head == state.tail
 }

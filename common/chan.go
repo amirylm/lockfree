@@ -5,45 +5,24 @@ import (
 	"runtime"
 )
 
-type LockFreeCollection[Value any] interface {
-	Push(Value) error
-	Pop() (Value, bool)
-	Size() int
-	Empty() bool
-	Full() bool
-}
+type Handler[Value any] func(Value) bool
 
-type Handler[Value any] func(Value) error
-
-func Channel[Value any](ctx context.Context, collection LockFreeCollection[Value], reader Handler[Value], errHandler func(error) bool) Handler[Value] {
-	checkErr := func(err error) bool {
-		if err != nil {
-			if errHandler == nil {
-				return true
-			}
-			return errHandler(err)
-		}
-		return false
-	}
-
+func Channel[Value any](ctx context.Context, ds DataStructure[Value], reader Handler[Value], errHandler Handler[error]) Handler[Value] {
 	go func() {
 		for ctx.Err() == nil {
-			if collection.Empty() {
+			if ds.Empty() {
 				runtime.Gosched()
 				continue
 			}
-			val, ok := collection.Pop()
+			val, ok := ds.Pop()
 			if !ok {
 				continue
 			}
-			err := reader(val)
-			if checkErr(err) {
+			if !reader(val) {
 				return
 			}
 		}
 	}()
 
-	return func(v Value) error {
-		return collection.Push(v)
-	}
+	return ds.Push
 }
