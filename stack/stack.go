@@ -1,12 +1,9 @@
 package stack
 
 import (
-	"errors"
 	"sync/atomic"
-)
 
-var (
-	ErrStackOverflow = errors.New("stack overflow")
+	"github.com/amirylm/lockfree/common"
 )
 
 // element is an item in the stack.
@@ -37,7 +34,7 @@ func New[Value any](capacity int) *Stack[Value] {
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
 func (s *Stack[Value]) Push(value Value) error {
 	if s.Full() {
-		return ErrStackOverflow
+		return common.ErrOverflow
 	}
 
 	e := &element[Value]{}

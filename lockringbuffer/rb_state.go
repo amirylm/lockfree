@@ -5,16 +5,16 @@ type ringBufferState struct {
 	full       bool
 }
 
-func newState(previous *ringBufferState) ringBufferState {
-	if previous == nil {
-		previous = new(ringBufferState)
-	}
-	return ringBufferState{
-		head: previous.head,
-		tail: previous.tail,
-		full: previous.full,
-	}
-}
+// func newState(previous *ringBufferState) ringBufferState {
+// 	if previous == nil {
+// 		previous = new(ringBufferState)
+// 	}
+// 	return ringBufferState{
+// 		head: previous.head,
+// 		tail: previous.tail,
+// 		full: previous.full,
+// 	}
+// }
 
 func (state ringBufferState) Empty() bool {
 	return !state.full && state.head == state.tail

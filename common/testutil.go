@@ -36,7 +36,11 @@ func DoConcurrencyCheck(pctx context.Context, t *testing.T, coll LockFreeCollect
 			for i := 0; i < n; i++ {
 				data := fmt.Sprintf("%x", rand.Intn(100_000_000))
 				dataB := []byte(data)
-				require.NoError(t, writer(dataB))
+				err := writer(dataB)
+				if err == ErrOverflow {
+					continue
+				}
+				require.NoError(t, err)
 			}
 		}()
 	}

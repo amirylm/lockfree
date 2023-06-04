@@ -1,22 +1,22 @@
 package ringbuffer
 
 import (
-	"errors"
 	"runtime"
 	"sync/atomic"
+
+	"github.com/amirylm/lockfree/common"
 )
 
 // NOTE: WIP
 
-var (
-	ErrBufferIsEmpty  = errors.New("buffer is empty")
-	ErrBufferOverflow = errors.New("buffer overflow")
-)
-
 func New[V any](c int) *RingBuffer[V] {
 	rb := &RingBuffer[V]{
-		data:     make([]V, c),
+		elements: make([]*atomic.Pointer[V], c),
 		capacity: uint32(c),
+	}
+
+	for i := range rb.elements {
+		rb.elements[i] = &atomic.Pointer[V]{}
 	}
 
 	return rb
@@ -25,7 +25,7 @@ func New[V any](c int) *RingBuffer[V] {
 // RingBuffer is a lock-free ring buffer implementation.
 // NOTE: WIP
 type RingBuffer[V any] struct {
-	data []V
+	elements []*atomic.Pointer[V]
 
 	capacity uint32
 	state    atomic.Uint64
@@ -45,19 +45,17 @@ func (rb *RingBuffer[V]) Push(v V) error {
 	originalState := rb.state.Load()
 	state := newState(originalState)
 	if state.full {
-		return ErrBufferOverflow
+		return common.ErrOverflow
 	}
-	i := state.tail % rb.capacity
+	el := rb.elements[state.tail%rb.capacity]
 	state.tail++
 	state.full = (state.tail%rb.capacity == state.head%rb.capacity)
-	orig := rb.data[i]
-	rb.data[i] = v
+	orig := el.Swap(&v)
 	if !rb.state.CompareAndSwap(originalState, state.Uint64()) {
-		rb.data[i] = orig
+		el.Store(orig)
 		runtime.Gosched()
 		return rb.Push(v)
 	}
-
 	return nil
 }
 
@@ -66,22 +64,22 @@ func (rb *RingBuffer[V]) Push(v V) error {
 func (rb *RingBuffer[V]) Pop() (V, bool) {
 	originalState := rb.state.Load()
 	state := newState(rb.state.Load())
-	var empty V
+	var v V
 	if state.IsEmpty() {
-		return empty, false
+		return v, false
 	}
-	i := state.head % rb.capacity
-	v := rb.data[i]
+	el := rb.elements[state.head%rb.capacity]
 	state.head++
 	state.full = false
-	rb.data[i] = empty
+	val := el.Load()
 	if !rb.state.CompareAndSwap(originalState, state.Uint64()) {
-		// in case we have some conflict with another goroutine, revert and retry.
-		rb.data[i] = v
+		// in case we have some conflict with another goroutine, retry.
 		runtime.Gosched()
 		return rb.Pop()
 	}
-
+	if val != nil {
+		v = *val
+	}
 	return v, true
 }
 
@@ -92,3 +90,11 @@ func (rb *RingBuffer[Value]) Size() int {
 	}
 	return int(state.tail - state.head)
 }
+
+// func (rb *RingBuffer[V]) Slice() []*V {
+// 	res := make([]*V, 0)
+// 	for _, el := range rb.elements {
+// 		res = append(res, el.Load())
+// 	}
+// 	return res
+// }

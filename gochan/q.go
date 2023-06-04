@@ -1,6 +1,8 @@
 package gochan
 
-import "errors"
+import (
+	"github.com/amirylm/lockfree/common"
+)
 
 type GoChanQ[Value any] struct {
 	cn       chan Value
@@ -20,7 +22,7 @@ func (q *GoChanQ[Value]) Push(v Value) error {
 		return nil
 	default:
 	}
-	return errors.New("q overflow")
+	return common.ErrOverflow
 }
 
 func (q *GoChanQ[Value]) Pop() (Value, bool) {

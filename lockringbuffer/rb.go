@@ -1,16 +1,12 @@
 package lockringbuffer
 
 import (
-	"errors"
 	"sync"
+
+	"github.com/amirylm/lockfree/common"
 )
 
 // NOTE: WIP
-
-var (
-	ErrBufferIsEmpty  = errors.New("buffer is empty")
-	ErrBufferOverflow = errors.New("buffer overflow")
-)
 
 func New[V any](c int) *LockRingBuffer[V] {
 	rb := &LockRingBuffer[V]{
@@ -54,7 +50,7 @@ func (rb *LockRingBuffer[V]) Push(v V) error {
 	// originalState := rb.state
 	state := rb.state
 	if state.full {
-		return ErrBufferOverflow
+		return common.ErrOverflow
 	}
 	i := state.tail % rb.capacity
 	state.tail++
