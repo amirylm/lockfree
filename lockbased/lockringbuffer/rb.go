@@ -2,11 +2,11 @@ package lockringbuffer
 
 import (
 	"sync"
+
+	"github.com/amirylm/lockfree/common"
 )
 
-// NOTE: WIP
-
-func New[V any](c int) *LockRingBuffer[V] {
+func New[V any](c int) common.DataStructure[V] {
 	rb := &LockRingBuffer[V]{
 		lock:     &sync.RWMutex{},
 		data:     make([]V, c),
@@ -16,6 +16,7 @@ func New[V any](c int) *LockRingBuffer[V] {
 	return rb
 }
 
+// LockRingBuffer is a ring buffer that uses rw mutex to provide thread safety
 type LockRingBuffer[V any] struct {
 	lock *sync.RWMutex
 
@@ -40,12 +41,10 @@ func (rb *LockRingBuffer[V]) Full() bool {
 }
 
 // Push adds a new item to the buffer.
-// In case of some conflict with other goroutine, we revert changes and call retry.
 func (rb *LockRingBuffer[V]) Push(v V) bool {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
-	// originalState := rb.state
 	state := rb.state
 	if state.full {
 		return false
@@ -60,7 +59,6 @@ func (rb *LockRingBuffer[V]) Push(v V) bool {
 }
 
 // Enqueue pops the next item in the buffer.
-// In case of some conflict with other goroutine, we revert changes and call retry.
 func (rb *LockRingBuffer[V]) Pop() (V, bool) {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()

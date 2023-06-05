@@ -2,6 +2,8 @@ package queue
 
 import (
 	"sync/atomic"
+
+	"github.com/amirylm/lockfree/common"
 )
 
 // element is an item in the ueue.
@@ -21,7 +23,7 @@ type Queue[Value any] struct {
 }
 
 // New creates a new lock-free queue.
-func New[Value any](capacity int) *Queue[Value] {
+func New[Value any](capacity int) common.DataStructure[Value] {
 	return &Queue[Value]{
 		head:     atomic.Pointer[element[Value]]{},
 		tail:     atomic.Pointer[element[Value]]{},

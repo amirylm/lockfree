@@ -2,15 +2,19 @@ package ringbuffer
 
 import (
 	"sync/atomic"
+
+	"github.com/amirylm/lockfree/common"
 )
 
 // New creates a new RingBuffer
-func New[V any](c int) *RingBuffer[V] {
+func New[V any](c int) common.DataStructure[V] {
 	rb := &RingBuffer[V]{
 		elements: make([]*atomic.Pointer[V], c),
 		capacity: uint32(c),
-		state:    atomic.Pointer[ringBufferState]{},
+		state:    atomic.Uint64{},
 	}
+
+	rb.state.Store(new(ringBufferState).Uint64())
 
 	for i := range rb.elements {
 		rb.elements[i] = &atomic.Pointer[V]{}
@@ -20,12 +24,11 @@ func New[V any](c int) *RingBuffer[V] {
 }
 
 // RingBuffer is a lock-free ring buffer implementation.
-// NOTE: WIP
 type RingBuffer[V any] struct {
 	elements []*atomic.Pointer[V]
 
 	capacity uint32
-	state    atomic.Pointer[ringBufferState]
+	state    atomic.Uint64
 }
 
 func (rb *RingBuffer[V]) Empty() bool {
@@ -53,30 +56,29 @@ func (rb *RingBuffer[V]) Push(v V) bool {
 		return false
 	}
 	el := rb.elements[state.tail%rb.capacity]
-	state.BumpTail()
-	state.SetFull(state.tail%rb.capacity == state.head%rb.capacity)
-	orig := el.Swap(&v)
-	if !rb.state.CompareAndSwap(originalState, state) {
-		el.Store(orig)
-		return rb.Push(v)
+	state.tail++
+	state.full = state.tail%rb.capacity == state.head%rb.capacity
+	if rb.state.CompareAndSwap(originalState, state.Uint64()) {
+		el.Store(&v)
+		return true
 	}
-	return true
+	return rb.Push(v)
 }
 
 // Enqueue pops the next item in the buffer.
 // We retry in case of some conflict with other goroutine.
 func (rb *RingBuffer[V]) Pop() (V, bool) {
 	originalState := rb.state.Load()
-	state := newState(rb.state.Load())
+	state := newState(originalState)
 	var v V
 	if state.Empty() {
 		return v, false
 	}
 	el := rb.elements[state.head%rb.capacity]
-	state.BumpHead()
-	state.SetFull(false)
+	state.head++
+	state.full = false
 	val := el.Load()
-	if !rb.state.CompareAndSwap(originalState, state) {
+	if !rb.state.CompareAndSwap(originalState, state.Uint64()) {
 		// in case we have some conflict with another goroutine, retry.
 		return rb.Pop()
 	}

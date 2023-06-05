@@ -2,6 +2,8 @@ package stack
 
 import (
 	"sync/atomic"
+
+	"github.com/amirylm/lockfree/common"
 )
 
 // element is an item in the stack.
@@ -20,7 +22,7 @@ type Stack[Value any] struct {
 }
 
 // New creates a new lock-free stack.
-func New[Value any](capacity int) *Stack[Value] {
+func New[Value any](capacity int) common.DataStructure[Value] {
 	return &Stack[Value]{
 		head:     atomic.Pointer[element[Value]]{},
 		size:     atomic.Int32{},

@@ -1,11 +1,13 @@
 package gochan
 
+import "github.com/amirylm/lockfree/common"
+
 type GoChanQ[Value any] struct {
 	cn       chan Value
 	capacity int
 }
 
-func New[Value any](capacity int) *GoChanQ[Value] {
+func New[Value any](capacity int) common.DataStructure[Value] {
 	return &GoChanQ[Value]{
 		cn:       make(chan Value, capacity),
 		capacity: capacity,
