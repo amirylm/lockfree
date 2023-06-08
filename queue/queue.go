@@ -16,10 +16,10 @@ type element[Value any] struct {
 // Queue is a lock-free queue implementation,
 // based on atomic compare-and-swap operations.
 type Queue[Value any] struct {
-	head atomic.Pointer[element[Value]]
-	tail atomic.Pointer[element[Value]]
-
-	capacity int
+	head     atomic.Pointer[element[Value]]
+	tail     atomic.Pointer[element[Value]]
+	size     atomic.Int32
+	capacity int32
 }
 
 // New creates a new lock-free queue.
@@ -27,7 +27,8 @@ func New[Value any](capacity int) common.DataStructure[Value] {
 	return &Queue[Value]{
 		head:     atomic.Pointer[element[Value]]{},
 		tail:     atomic.Pointer[element[Value]]{},
-		capacity: capacity,
+		size:     atomic.Int32{},
+		capacity: int32(capacity),
 	}
 }
 
@@ -45,10 +46,12 @@ func (q *Queue[Value]) Push(value Value) bool {
 		if t == nil {
 			q.head.Store(e)
 			q.tail.Store(q.head.Load())
+			q.size.Add(1)
 			break
 		}
 		(*t).next.Store(e)
 		if q.tail.CompareAndSwap(t, e) {
+			q.size.Add(1)
 			break
 		}
 	}
@@ -61,16 +64,22 @@ func (q *Queue[Value]) Push(value Value) bool {
 // if there was a conflict with concurrent Pop()/Push() operation.
 func (q *Queue[Value]) Pop() (Value, bool) {
 	var val Value
+	if q.Empty() {
+		return val, false
+	}
 	h := q.head.Load()
 	if h == nil {
 		return val, false
 	}
 	next, value := (*h).next.Load(), (*h).value.Load()
-	changed := q.head.CompareAndSwap(h, next)
-	if value != nil {
-		val = *value
+	if q.head.CompareAndSwap(h, next) {
+		q.size.Add(-1)
+		if value != nil {
+			val = *value
+		}
+		return val, true
 	}
-	return val, changed
+	return q.Pop()
 }
 
 // Range iterates over the queue, accepts a custom iterator that returns true to stop.
@@ -82,29 +91,24 @@ func (q *Queue[Value]) Range(iterator func(val Value) bool) {
 		if valp != nil {
 			val = *valp
 		}
-		stop := iterator(val)
-		if stop {
+		if iterator(val) {
 			return
 		}
 		current = current.next.Load()
 	}
 }
 
-// Size returns the number of items in the queue.
-// Utilizes Range() to count the items.
-func (q *Queue[Value]) Size() int {
-	var counter int
-	q.Range(func(val Value) bool {
-		counter++
-		return false
-	})
-	return counter
+// Size returns the number of items in the stack.
+func (s *Queue[Value]) Size() int {
+	return int(s.size.Load())
 }
 
-func (q *Queue[Value]) Full() bool {
-	return q.Size() == int(q.capacity)
+// Len returns the number of items in the stack.
+func (s *Queue[Value]) Full() bool {
+	return s.size.Load() == s.capacity
 }
 
-func (q *Queue[Value]) Empty() bool {
-	return q.Size() == 0
+// Len returns the number of items in the stack.
+func (s *Queue[Value]) Empty() bool {
+	return s.size.Load() == 0
 }
