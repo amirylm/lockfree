@@ -53,195 +53,78 @@ func Benchmark_PushPopInt(b *testing.B) {
 	}
 }
 
-func Benchmark_PushPopBytes_Concurrent(b *testing.B) {
+func Benchmark_PushPopBytes_Concurrent_Single(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 1, 1)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_4(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 4, 4)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_16(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 16, 16)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_Readers(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 4, 2)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_Readers_16(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 16, 2)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_Readers_64(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 64, 4)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_Writers(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 2, 4)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_Writers_16(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 2, 16)
+}
+
+func Benchmark_PushPopBytes_Concurrent_Multi_Writers_64(b *testing.B) {
+	benchmarkPushPopBytes(b, 128, 4, 64)
+}
+
+func benchmarkPushPopBytes(b *testing.B, c, r, w int) {
 	tests := []concurrentTestCase[int]{
 		{
 			"ring buffer (atomic)",
-			ringbuffer.New[int](128),
-			1,
-			1,
+			ringbuffer.New[int](c),
+			r,
+			w,
 		},
 		{
 			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
-			1,
-			1,
-		},
-		{
-			"stack",
-			stack.New[int](128),
-			1,
-			1,
+			lockringbuffer.New[int](c),
+			r,
+			w,
 		},
 		{
 			"queue",
-			queue.New[int](128),
-			1,
-			1,
+			queue.New[int](c),
+			r,
+			w,
 		},
 		{
 			"go channel",
-			gochan.New[int](128),
-			1,
-			1,
+			gochan.New[int](c),
+			r,
+			w,
+		},
+		{
+			"stack",
+			stack.New[int](c),
+			r,
+			w,
 		},
 	}
 
 	for _, tc := range tests {
 		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseInt(tc, b))
-	}
-}
-
-func BenchmarkInt_PushPopBytes_Concurrent_RB(b *testing.B) {
-	tests := []concurrentTestCase[[]byte]{
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			3,
-			2,
-		},
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			2,
-			3,
-		},
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			5,
-			5,
-		},
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			15,
-			2,
-		},
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			64,
-			4,
-		},
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			15,
-			15,
-		},
-		{
-			"ring buffer",
-			ringbuffer.New[[]byte](128),
-			2,
-			15,
-		},
-	}
-
-	for _, tc := range tests {
-		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseBytes(tc, b))
-	}
-}
-
-func BenchmarkInt_PushPopBytes_Concurrent_LRB(b *testing.B) {
-	tests := []concurrentTestCase[[]byte]{
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			3,
-			2,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			2,
-			3,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			5,
-			5,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			15,
-			2,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			64,
-			4,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			15,
-			15,
-		},
-		{
-			"ring buffer (lock)",
-			lockringbuffer.New[[]byte](128),
-			2,
-			15,
-		},
-	}
-
-	for _, tc := range tests {
-		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseBytes(tc, b))
-	}
-}
-
-func BenchmarkInt_PushPopBytes_Concurrent_GoChan(b *testing.B) {
-	tests := []concurrentTestCase[[]byte]{
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			3,
-			2,
-		},
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			2,
-			3,
-		},
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			5,
-			5,
-		},
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			15,
-			2,
-		},
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			64,
-			4,
-		},
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			15,
-			15,
-		},
-		{
-			"go channel",
-			gochan.New[[]byte](128),
-			2,
-			15,
-		},
-	}
-
-	for _, tc := range tests {
-		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseBytes(tc, b))
 	}
 }
 
