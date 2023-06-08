@@ -47,6 +47,9 @@ func (s *Stack[Value]) Push(value Value) bool {
 			_ = s.size.Add(1)
 			break
 		}
+		if s.Full() {
+			return false
+		}
 	}
 	return true
 }
@@ -62,14 +65,14 @@ func (s *Stack[Value]) Pop() (Value, bool) {
 		return val, false
 	}
 	next, value := (*h).next.Load(), (*h).value.Load()
-	changed := s.head.CompareAndSwap(h, next)
-	if changed {
+	if s.head.CompareAndSwap(h, next) {
 		_ = s.size.Add(-1)
+		if value != nil {
+			val = *value
+		}
+		return val, true
 	}
-	if value != nil {
-		val = *value
-	}
-	return val, changed
+	return s.Pop()
 }
 
 // Range iterates over the stack, accepts a custom iterator that returns true to stop.

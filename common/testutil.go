@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,9 +38,11 @@ func SanityTest[Value any](t *testing.T, n int, factory DataStructureFactory[Val
 	require.True(t, ds.Push(gen(n)), "should be able to push elements after pop")
 }
 
-func ConcurrencyTest[Value any](t *testing.T, pctx context.Context, cap, n, readers, writers int, factory DataStructureFactory[Value], gen ElementGenerator[Value], assertor ElementAssertor[Value]) {
+func ConcurrencyTest[Value any](t *testing.T, pctx context.Context, cap, n, readers, writers int, factory DataStructureFactory[Value], gen ElementGenerator[Value], assertor ElementAssertor[Value]) (int64, int64) {
 	ctx, cancel := context.WithCancel(pctx)
 	defer cancel()
+
+	var reads, writes int64
 
 	ds := factory(cap)
 
@@ -57,6 +60,7 @@ func ConcurrencyTest[Value any](t *testing.T, pctx context.Context, cap, n, read
 					}
 					runtime.Gosched()
 				}
+				atomic.AddInt64(&writes, 1)
 			}
 		}()
 	}
@@ -75,9 +79,12 @@ func ConcurrencyTest[Value any](t *testing.T, pctx context.Context, cap, n, read
 					element, ok = ds.Pop()
 				}
 				require.True(t, assertor(i, element), "assertion failed: element %d with value %+v", i, element)
+				atomic.AddInt64(&reads, 1)
 			}
 		}()
 	}
 
 	wg.Wait()
+
+	return reads, writes
 }

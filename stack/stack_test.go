@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
@@ -22,11 +23,20 @@ func TestStack_Concurrency_Bytes(t *testing.T) {
 	pctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	common.ConcurrencyTest(t, pctx, 128, 1024, 2, 2, New[[]byte], func(i int) []byte {
-		return []byte{1, 1, 1, 1}
+	nmsgs := 1024
+	c := 128
+	w, r := 2, 2
+
+	reads, writes := common.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
+		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
-		return len(v) == 4 && v[0] == 1
+		return len(v) > 1 && v[0] == 1
 	})
+
+	expectedW := int64(nmsgs * w) // num of msgs * num of writers
+	require.Equal(t, expectedW, writes, "num of writes is wrong")
+	expectedR := int64(nmsgs * r) // num of msgs * num of writers
+	require.Equal(t, expectedR, reads, "num of reads is wrong")
 }
 
 func TestStack_Range(t *testing.T) {

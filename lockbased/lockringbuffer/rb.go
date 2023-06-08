@@ -6,10 +6,10 @@ import (
 	"github.com/amirylm/lockfree/common"
 )
 
-func New[V any](c int) common.DataStructure[V] {
-	rb := &LockRingBuffer[V]{
+func New[Value any](c int) common.DataStructure[Value] {
+	rb := &LockRingBuffer[Value]{
 		lock:     &sync.RWMutex{},
-		data:     make([]V, c),
+		data:     make([]Value, c),
 		capacity: uint32(c),
 	}
 
@@ -17,10 +17,10 @@ func New[V any](c int) common.DataStructure[V] {
 }
 
 // LockRingBuffer is a ring buffer that uses rw mutex to provide thread safety
-type LockRingBuffer[V any] struct {
+type LockRingBuffer[Value any] struct {
 	lock *sync.RWMutex
 
-	data []V
+	data []Value
 
 	state    ringBufferState
 	capacity uint32
