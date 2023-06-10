@@ -33,31 +33,21 @@ func New[Value any](capacity int) common.DataStructure[Value] {
 // Push adds a new value to the stack.
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
 func (s *Stack[Value]) Push(value Value) bool {
-	if s.Full() {
-		return false
-	}
-
 	e := &element[Value]{}
 	e.value.Store(&value)
 
-	for {
+	for !s.Full() {
 		h := s.head.Load()
 		e.next.Store(h)
 		if s.head.CompareAndSwap(h, e) {
 			_ = s.size.Add(1)
-			break
-		}
-		if s.Full() {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 // Pop removes the next value from the stack.
-// returns false in case the stack wasn't changed,
-// which could happen if the stack is empty or
-// if there was a conflict with concurrent Pop()/Push() operation.
 func (s *Stack[Value]) Pop() (Value, bool) {
 	var val Value
 	h := s.head.Load()

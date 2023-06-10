@@ -65,7 +65,7 @@ func (rb *RingBuffer[Value]) Push(v Value) bool {
 	return rb.Push(v)
 }
 
-// Enqueue pops the next item in the buffer.
+// Pop reads the next item in the buffer.
 // We retry in case of some conflict with other goroutine.
 func (rb *RingBuffer[Value]) Pop() (Value, bool) {
 	originalState := rb.state.Load()
