@@ -7,8 +7,8 @@ import (
 	"github.com/amirylm/lockfree/common"
 	"github.com/amirylm/lockfree/queue"
 
-	"github.com/amirylm/lockfree/lockbased/gochan"
-	"github.com/amirylm/lockfree/lockbased/lockringbuffer"
+	"github.com/amirylm/lockfree/benchmark/gochan"
+	"github.com/amirylm/lockfree/benchmark/lockringbuffer"
 	"github.com/amirylm/lockfree/ringbuffer"
 	"github.com/amirylm/lockfree/stack"
 )

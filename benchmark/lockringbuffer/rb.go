@@ -16,6 +16,19 @@ func New[Value any](c int) common.DataStructure[Value] {
 	return rb
 }
 
+type ringBufferState struct {
+	head, tail uint32
+	full       bool
+}
+
+func (state ringBufferState) Empty() bool {
+	return !state.full && state.head == state.tail
+}
+
+func (state ringBufferState) Full() bool {
+	return state.full
+}
+
 // LockRingBuffer is a ring buffer that uses rw mutex to provide thread safety
 type LockRingBuffer[Value any] struct {
 	lock *sync.RWMutex

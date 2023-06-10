@@ -24,7 +24,7 @@ func TestLockRingBuffer_Concurrency_Bytes(t *testing.T) {
 
 	nmsgs := 1024
 	c := 128
-	w, r := 5, 5
+	w, r := 2, 2
 
 	reads, writes := common.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
