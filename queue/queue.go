@@ -99,16 +99,16 @@ func (q *Queue[Value]) Range(iterator func(val Value) bool) {
 }
 
 // Size returns the number of items in the stack.
-func (s *Queue[Value]) Size() int {
-	return int(s.size.Load())
+func (q *Queue[Value]) Size() int {
+	return int(q.size.Load())
 }
 
 // Len returns the number of items in the stack.
-func (s *Queue[Value]) Full() bool {
-	return s.size.Load() == s.capacity
+func (q *Queue[Value]) Full() bool {
+	return q.size.Load() == q.capacity
 }
 
 // Len returns the number of items in the stack.
-func (s *Queue[Value]) Empty() bool {
-	return s.size.Load() == 0
+func (q *Queue[Value]) Empty() bool {
+	return q.size.Load() == 0
 }
