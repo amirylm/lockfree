@@ -20,33 +20,43 @@ type TickerData struct {
 	WeightedAvgPrice   float64 `json:"weightedAvgPrice,string"`
 	PrevClosePrice     float64 `json:"prevClosePrice,string"`
 	LastPrice          float64 `json:"lastPrice,string"`
+	LastQty            float64 `json:"lastQty,string"`
+	BidPrice           float64 `json:"bidPrice,string"`
+	BidQty             float64 `json:"bidQty,string"`
+	AskPrice           float64 `json:"askPrice,string"`
+	AskQty             float64 `json:"askQty,string"`
 	Volume             float64 `json:"volume,string"`
 	OpenPrice          float64 `json:"openPrice,string"`
 	HighPrice          float64 `json:"highPrice,string"`
 	LowPrice           float64 `json:"lowPrice,string"`
+	QuoteVolume        float64 `json:"quoteVolume,string"`
+	OpenTime           int64   `json:"openTime"`
+	CloseTime          int64   `json:"closeTime"`
+	FirstId            int64   `json:"firstId"`
+	LastId             int64   `json:"lastId"`
+	Count              int64   `json:"count"`
 }
 
 func main() {
 	stream := make(chan string)
 	rb := ringbuffer.New[string](128)
-	// buffer := make(chan string, 10)
 
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go readStream(stream, rb, &wg)
 	go readBuffer(rb, 101, &wg)
 	go readBuffer(rb, 202, &wg)
+	go readBuffer(rb, 303, &wg)
 
 	go func() {
+		// fetch crytp-currency data from binance for processing
 		res, err := http.Get("https://data.binance.com/api/v3/ticker/24hr")
 		if err != nil {
 			fmt.Println("Error making request: ", err)
 			return
 		}
-		defer res.Body.Close()
 
-		// read body
+		defer res.Body.Close()
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			fmt.Println("Error reading response body: ", err)
@@ -68,8 +78,7 @@ func main() {
 				field := dataValue.Field(i)
 				fieldName := string(dataValue.Type().Field(i).Name)
 				fieldValue := field.Interface()
-				// fmt.Printf("%s: %v\n", fieldName, fieldValue)
-				stream <- fmt.Sprintf("%s: %v", fieldName, fieldValue)
+				rb.Push(fmt.Sprintf("%s: %v", fieldName, fieldValue))
 			}
 			time.Sleep(250 * time.Millisecond)
 		}
@@ -77,22 +86,15 @@ func main() {
 	wg.Wait()
 }
 
-func readStream(stream <-chan string, rb common.DataStructure[string], wg *sync.WaitGroup) {
-	defer wg.Done()
-	for message := range stream {
-		rb.Push(message)
-	}
-}
-
 func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		if !rb.Empty() {
-			v, succeeded := rb.Pop()
-			if succeeded {
+			v, ok := rb.Pop()
+			if ok {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		time.Sleep(400 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 }
