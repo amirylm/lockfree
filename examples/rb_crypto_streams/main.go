@@ -63,8 +63,8 @@ func main() {
 			return
 		}
 
-		var tickerData []TickerData
-		err = json.Unmarshal(body, &tickerData)
+		var td []TickerData
+		err = json.Unmarshal(body, &td)
 
 		if err != nil {
 			fmt.Println("Error unmarshaling JSON: ", err)
@@ -72,15 +72,17 @@ func main() {
 		}
 
 		defer close(stream)
-		for i := 0; i < len(tickerData); i++ {
-			dataValue := reflect.ValueOf(&tickerData[i]).Elem()
-			for i := 0; i < dataValue.NumField(); i++ {
-				field := dataValue.Field(i)
-				fieldName := string(dataValue.Type().Field(i).Name)
-				fieldValue := field.Interface()
-				rb.Push(fmt.Sprintf("%s: %v", fieldName, fieldValue))
+		for i := 0; i < len(td); i++ {
+
+			// iterating over struct fields
+			dataV := reflect.ValueOf(&td[i]).Elem()
+			for i := 0; i < dataV.NumField(); i++ {
+				field := dataV.Field(i)
+				fieldN := string(dataV.Type().Field(i).Name)
+				fieldV := field.Interface()
+				rb.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
 			}
-			time.Sleep(250 * time.Millisecond)
+			time.Sleep(300 * time.Millisecond)
 		}
 	}()
 	wg.Wait()
@@ -95,6 +97,6 @@ func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup) {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
