@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/amirylm/lockfree/common"
@@ -38,13 +39,13 @@ type TickerData struct {
 }
 
 type State struct {
-	v  bool
-	mu sync.RWMutex
+	v atomic.Bool
 }
 
 func main() {
 	rb := ringbuffer.New[string](128)
-	done := State{v: false}
+	done := State{}
+	done.v.Store(false)
 	var wg sync.WaitGroup
 	wg.Add(3)
 
@@ -87,19 +88,14 @@ func main() {
 			}
 			time.Sleep(30 * time.Millisecond)
 		}
-		done.mu.Lock()
-		done.v = true
-		done.mu.Unlock()
+		done.v.Store(true)
 	}()
 	wg.Wait()
 }
 
 func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State) {
-	// defer wg.Done()
 	for {
-		s.mu.RLock()
-		done := s.v
-		s.mu.RUnlock()
+		done := s.v.Load()
 		if !rb.Empty() {
 			v, ok := rb.Pop()
 			if ok {
@@ -107,7 +103,7 @@ func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup, s 
 			}
 		}
 		if rb.Empty() && done {
-			fmt.Printf("From %d : Ringbuffer is empty and state of population is done, Terminating gracefully.", rid)
+			fmt.Printf("From %d : Ringbuffer is empty and state of population is done, Terminating gracefully.\n", rid)
 			break
 		}
 		time.Sleep(4 * time.Millisecond)
