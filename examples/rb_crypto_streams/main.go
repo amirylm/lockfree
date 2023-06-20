@@ -97,6 +97,6 @@ func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup) {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(41 * time.Millisecond)
 	}
 }
