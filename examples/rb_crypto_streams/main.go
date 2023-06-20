@@ -38,7 +38,6 @@ type TickerData struct {
 }
 
 func main() {
-	stream := make(chan string)
 	rb := ringbuffer.New[string](128)
 
 	var wg sync.WaitGroup
@@ -71,7 +70,6 @@ func main() {
 			return
 		}
 
-		defer close(stream)
 		for i := 0; i < len(td); i++ {
 
 			// iterating over struct fields
