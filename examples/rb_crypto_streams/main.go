@@ -37,15 +37,20 @@ type TickerData struct {
 	Count              int64   `json:"count"`
 }
 
+type State struct {
+	v  bool
+	mu sync.RWMutex
+}
+
 func main() {
 	rb := ringbuffer.New[string](128)
-
+	done := State{v: false}
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go readBuffer(rb, 101, &wg)
-	go readBuffer(rb, 202, &wg)
-	go readBuffer(rb, 303, &wg)
+	go readBuffer(rb, 101, &wg, &done)
+	go readBuffer(rb, 202, &wg, &done)
+	go readBuffer(rb, 303, &wg, &done)
 
 	go func() {
 		// fetch crytp-currency data from binance for processing
@@ -80,21 +85,32 @@ func main() {
 				fieldV := field.Interface()
 				rb.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
 			}
-			time.Sleep(300 * time.Millisecond)
+			time.Sleep(30 * time.Millisecond)
 		}
+		done.mu.Lock()
+		done.v = true
+		done.mu.Unlock()
 	}()
 	wg.Wait()
 }
 
-func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup) {
-	defer wg.Done()
+func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State) {
+	// defer wg.Done()
 	for {
+		s.mu.RLock()
+		done := s.v
+		s.mu.RUnlock()
 		if !rb.Empty() {
 			v, ok := rb.Pop()
 			if ok {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		time.Sleep(41 * time.Millisecond)
+		if rb.Empty() && done {
+			fmt.Printf("From %d : Ringbuffer is empty and state of population is done, Terminating gracefully.", rid)
+			break
+		}
+		time.Sleep(4 * time.Millisecond)
 	}
+	wg.Done()
 }
