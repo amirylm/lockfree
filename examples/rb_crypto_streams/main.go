@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,6 +87,8 @@ func main() {
 				fieldV := field.Interface()
 				rb.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
 			}
+			// simulating case where writing to ringbuffer (21 data-points per iteration)
+			// is at faster velocity than reading - thus requiring multiple reader routines.
 			time.Sleep(30 * time.Millisecond)
 		}
 		done.v.Store(true)
@@ -106,7 +109,7 @@ func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup, s 
 			fmt.Printf("From %d : Ringbuffer is empty and state of population is done, Terminating gracefully.\n", rid)
 			break
 		}
-		time.Sleep(4 * time.Millisecond)
+		runtime.Gosched()
 	}
 	wg.Done()
 }
