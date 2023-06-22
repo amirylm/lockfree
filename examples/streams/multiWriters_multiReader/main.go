@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -14,39 +15,36 @@ import (
 	"time"
 
 	"github.com/amirylm/lockfree/common"
+	examples "github.com/amirylm/lockfree/examples/streams"
+	"github.com/amirylm/lockfree/queue"
 	"github.com/amirylm/lockfree/ringbuffer"
+	"github.com/amirylm/lockfree/stack"
 )
-
-type TickerData struct {
-	Symbol             string  `json:"symbol"`
-	PriceChange        float64 `json:"priceChange,string"`
-	PriceChangePercent float64 `json:"priceChangePercent,string"`
-	WeightedAvgPrice   float64 `json:"weightedAvgPrice,string"`
-	PrevClosePrice     float64 `json:"prevClosePrice,string"`
-	LastPrice          float64 `json:"lastPrice,string"`
-	LastQty            float64 `json:"lastQty,string"`
-	BidPrice           float64 `json:"bidPrice,string"`
-	BidQty             float64 `json:"bidQty,string"`
-	AskPrice           float64 `json:"askPrice,string"`
-	AskQty             float64 `json:"askQty,string"`
-	Volume             float64 `json:"volume,string"`
-	OpenPrice          float64 `json:"openPrice,string"`
-	HighPrice          float64 `json:"highPrice,string"`
-	LowPrice           float64 `json:"lowPrice,string"`
-	QuoteVolume        float64 `json:"quoteVolume,string"`
-	OpenTime           int64   `json:"openTime"`
-	CloseTime          int64   `json:"closeTime"`
-	FirstId            int64   `json:"firstId"`
-	LastId             int64   `json:"lastId"`
-	Count              int64   `json:"count"`
-}
 
 type State struct {
 	v atomic.Bool
 }
 
 func main() {
-	rb := ringbuffer.New[string](128)
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: go run main.go ringbuffer|queue|stack")
+		return
+	}
+	ds := os.Args[1]
+
+	var c common.DataStructure[string]
+	switch ds {
+	case "ringbuffer":
+		c = ringbuffer.New[string](128)
+	case "queue":
+		c = queue.New[string](128)
+	case "stack":
+		c = stack.New[string](128)
+	default:
+		fmt.Println("Illegal argument. Must be ringbuffer | queue | stack")
+		return
+	}
+
 	done := State{}
 	done.v.Store(false)
 	// serves reader routines
@@ -57,9 +55,9 @@ func main() {
 	var wg3 sync.WaitGroup
 	wg1.Add(3)
 
-	go readBuffer(rb, 101, &wg1, &done)
-	go readBuffer(rb, 202, &wg1, &done)
-	go readBuffer(rb, 303, &wg1, &done)
+	go readFromStructure(c, 101, &wg1, &done, ds)
+	go readFromStructure(c, 202, &wg1, &done, ds)
+	go readFromStructure(c, 303, &wg1, &done, ds)
 
 	wg3.Add(1)
 	go func() {
@@ -80,13 +78,13 @@ func main() {
 		for scanner.Scan() {
 			fmt.Println("Scanning input for next JSON entity")
 			line := scanner.Bytes()
-			var data TickerData
+			var data examples.TickerData
 			if err := json.Unmarshal(line, &data); err != nil {
 				log.Println("Error unmarshaling JSON:", err)
 				continue // Skip malformed lines and proceed to the next one
 			}
 			wg2.Add(1)
-			go writeTickerDataToBuffer(rb, data, &wg2)
+			go writeTickerDataToDataStructure(c, data, &wg2)
 			time.Sleep(30 * time.Millisecond)
 		}
 
@@ -105,14 +103,14 @@ func main() {
 	wg1.Wait()
 }
 
-func writeTickerDataToBuffer(rb common.DataStructure[string], td TickerData, wg *sync.WaitGroup) {
+func writeTickerDataToDataStructure(c common.DataStructure[string], td examples.TickerData, wg *sync.WaitGroup) {
 	// iterating over struct fields
 	dataV := reflect.ValueOf(&td).Elem()
 	for i := 0; i < dataV.NumField(); i++ {
 		field := dataV.Field(i)
 		fieldN := string(dataV.Type().Field(i).Name)
 		fieldV := field.Interface()
-		rb.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
+		c.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
 	}
 	wg.Done()
 }
@@ -153,17 +151,17 @@ func scanConcatenatedJSON(data []byte, atEOF bool) (advance int, token []byte, e
 	return 0, nil, nil
 }
 
-func readBuffer(rb common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State) {
+func readFromStructure(c common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State, ds string) {
 	for {
 		done := s.v.Load()
-		if !rb.Empty() {
-			v, ok := rb.Pop()
+		if !c.Empty() {
+			v, ok := c.Pop()
 			if ok {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		if rb.Empty() && done {
-			fmt.Printf("From %d : Ringbuffer is empty and state of population is done, Terminating gracefully.\n", rid)
+		if c.Empty() && done {
+			fmt.Printf("From %d : %s is empty and state of population is done, Terminating gracefully.\n", rid, ds)
 			break
 		}
 		runtime.Gosched()
