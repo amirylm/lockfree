@@ -43,16 +43,16 @@ func main() {
 		return
 	}
 
-	done := State{}
-	done.v.Store(false)
+	s := State{}
+	s.v.Store(false)
 	var wg1 sync.WaitGroup
 	var wg2 sync.WaitGroup
 
 	// Create multiple workers to process tasks concurrently
-	numWorkers := 6
-	for i := 0; i < numWorkers; i++ {
+	workers := 6
+	for i := 0; i < workers; i++ {
 		wg1.Add(1)
-		go processTasks(i, c, &wg1, &done, ds)
+		go processTasks(i, c, &wg1, &s, ds)
 	}
 
 	wg2.Add(1)
@@ -67,7 +67,7 @@ func main() {
 	}()
 
 	wg2.Wait()
-	done.v.Store(true)
+	s.v.Store(true)
 	wg1.Wait()
 	fmt.Println("Processing of all tasks has been completed")
 }

@@ -43,14 +43,14 @@ func main() {
 		return
 	}
 
-	done := State{}
-	done.v.Store(false)
+	s := State{}
+	s.v.Store(false)
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go readFromDataStructure(c, 101, &wg, &done, ds)
-	go readFromDataStructure(c, 202, &wg, &done, ds)
-	go readFromDataStructure(c, 303, &wg, &done, ds)
+	go read(c, 101, &wg, &s, ds)
+	go read(c, 202, &wg, &s, ds)
+	go read(c, 303, &wg, &s, ds)
 
 	go func() {
 		// fetch crytp-currency data from binance for processing
@@ -61,14 +61,14 @@ func main() {
 		}
 
 		defer res.Body.Close()
-		body, err := ioutil.ReadAll(res.Body)
+		b, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			fmt.Println("Error reading response body: ", err)
 			return
 		}
 
 		var td []examples.TickerData
-		err = json.Unmarshal(body, &td)
+		err = json.Unmarshal(b, &td)
 
 		if err != nil {
 			fmt.Println("Error unmarshaling JSON: ", err)
@@ -78,32 +78,31 @@ func main() {
 		for i := 0; i < len(td); i++ {
 
 			// iterating over struct fields
-			dataV := reflect.ValueOf(&td[i]).Elem()
-			for i := 0; i < dataV.NumField(); i++ {
-				field := dataV.Field(i)
-				fieldN := string(dataV.Type().Field(i).Name)
-				fieldV := field.Interface()
-				c.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
+			dv := reflect.ValueOf(&td[i]).Elem()
+			for i := 0; i < dv.NumField(); i++ {
+				f := dv.Field(i)
+				fn := string(dv.Type().Field(i).Name)
+				fv := f.Interface()
+				c.Push(fmt.Sprintf("%s: %v", fn, fv))
 			}
 			// simulating case where writing to data structure (21 data-points per iteration)
 			// is at faster velocity than reading - thus requiring multiple reader routines.
 			time.Sleep(30 * time.Millisecond)
 		}
-		done.v.Store(true)
+		s.v.Store(true)
 	}()
 	wg.Wait()
 }
 
-func readFromDataStructure(c common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State, ds string) {
+func read(c common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State, ds string) {
 	for {
-		done := s.v.Load()
 		if !c.Empty() {
 			v, ok := c.Pop()
 			if ok {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		if c.Empty() && done {
+		if c.Empty() && s.v.Load() {
 			fmt.Printf("From %d : %s is empty and state of population is done, Terminating gracefully.\n", rid, ds)
 			break
 		}

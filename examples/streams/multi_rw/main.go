@@ -45,8 +45,8 @@ func main() {
 		return
 	}
 
-	done := State{}
-	done.v.Store(false)
+	s := State{}
+	s.v.Store(false)
 	// serves reader routines
 	var wg1 sync.WaitGroup
 	// serves writer routines
@@ -55,9 +55,9 @@ func main() {
 	var wg3 sync.WaitGroup
 	wg1.Add(3)
 
-	go readFromStructure(c, 101, &wg1, &done, ds)
-	go readFromStructure(c, 202, &wg1, &done, ds)
-	go readFromStructure(c, 303, &wg1, &done, ds)
+	go read(c, 101, &wg1, &s, ds)
+	go read(c, 202, &wg1, &s, ds)
+	go read(c, 303, &wg1, &s, ds)
 
 	wg3.Add(1)
 	go func() {
@@ -69,67 +69,66 @@ func main() {
 		}
 
 		defer res.Body.Close()
-		scanner := bufio.NewScanner(res.Body)
-		const maxCapacity = 10 * 1024 * 1024 // 10MB (adjust as per your needs)
-		buf := make([]byte, maxCapacity)
-		scanner.Buffer(buf, maxCapacity)
-		scanner.Split(scanConcatenatedJSON)
+		sc := bufio.NewScanner(res.Body)
+		const max_c = 10 * 1024 * 1024 // 10MB (adjust as per your needs)
+		b := make([]byte, max_c)
+		sc.Buffer(b, max_c)
+		sc.Split(scanJSON)
 
-		for scanner.Scan() {
+		for sc.Scan() {
 			fmt.Println("Scanning input for next JSON entity")
-			line := scanner.Bytes()
-			var data examples.TickerData
-			if err := json.Unmarshal(line, &data); err != nil {
+			l := sc.Bytes()
+			var tc examples.TickerData
+			if err := json.Unmarshal(l, &tc); err != nil {
 				log.Println("Error unmarshaling JSON:", err)
 				continue // Skip malformed lines and proceed to the next one
 			}
 			wg2.Add(1)
-			go writeTickerDataToDataStructure(c, data, &wg2)
+			go writeData(c, tc, &wg2)
 			time.Sleep(30 * time.Millisecond)
 		}
 
-		if err := scanner.Err(); err != nil {
+		if err := sc.Err(); err != nil {
 			panic(err)
 		}
 
 		// wait for writer routines to complete
 		wg2.Wait()
-		// trigger state change signaling writers have completed
 		wg3.Done()
 	}()
 	wg3.Wait()
-	done.v.Store(true)
+	s.v.Store(true)
 	// wait for readers to complete
 	wg1.Wait()
 }
 
-func writeTickerDataToDataStructure(c common.DataStructure[string], td examples.TickerData, wg *sync.WaitGroup) {
+func writeData(c common.DataStructure[string], td examples.TickerData, wg *sync.WaitGroup) {
 	// iterating over struct fields
-	dataV := reflect.ValueOf(&td).Elem()
-	for i := 0; i < dataV.NumField(); i++ {
-		field := dataV.Field(i)
-		fieldN := string(dataV.Type().Field(i).Name)
-		fieldV := field.Interface()
-		c.Push(fmt.Sprintf("%s: %v", fieldN, fieldV))
+	dv := reflect.ValueOf(&td).Elem()
+	for i := 0; i < dv.NumField(); i++ {
+		f := dv.Field(i)
+		fn := string(dv.Type().Field(i).Name)
+		fv := f.Interface()
+		c.Push(fmt.Sprintf("%s: %v", fn, fv))
 	}
 	wg.Done()
 }
 
-func scanConcatenatedJSON(data []byte, atEOF bool) (advance int, token []byte, err error) {
+func scanJSON(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
 
 	// Find the position of the next JSON object within the data
-	start := strings.Index(string(data), "{")
-	if start == -1 {
+	s := strings.Index(string(data), "{")
+	if s == -1 {
 		// No opening brace found, request more data
 		return 0, nil, nil
 	}
 
 	// Find the position of the corresponding closing brace '}' for the JSON object
 	level := 1
-	for i := start + 1; i < len(data); i++ {
+	for i := s + 1; i < len(data); i++ {
 		switch data[i] {
 		case '{':
 			level++
@@ -137,7 +136,7 @@ func scanConcatenatedJSON(data []byte, atEOF bool) (advance int, token []byte, e
 			level--
 			if level == 0 {
 				// Include the closing brace in the token
-				return i + 1, data[start : i+1], nil
+				return i + 1, data[s : i+1], nil
 			}
 		}
 	}
@@ -151,16 +150,15 @@ func scanConcatenatedJSON(data []byte, atEOF bool) (advance int, token []byte, e
 	return 0, nil, nil
 }
 
-func readFromStructure(c common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State, ds string) {
+func read(c common.DataStructure[string], rid int, wg *sync.WaitGroup, s *State, ds string) {
 	for {
-		done := s.v.Load()
 		if !c.Empty() {
 			v, ok := c.Pop()
 			if ok {
 				fmt.Printf("From %d : %v\n", rid, v)
 			}
 		}
-		if c.Empty() && done {
+		if c.Empty() && s.v.Load() {
 			fmt.Printf("From %d : %s is empty and state of population is done, Terminating gracefully.\n", rid, ds)
 			break
 		}
