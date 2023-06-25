@@ -77,8 +77,8 @@ func (rb *RingBuffer[Value]) Pop() (Value, bool) {
 	el := rb.elements[state.head%rb.capacity]
 	state.head++
 	state.full = false
+	val := el.Load()
 	if rb.state.CompareAndSwap(originalState, state.Uint64()) {
-		val := el.Load()
 		if val != nil {
 			v = *val
 		}
