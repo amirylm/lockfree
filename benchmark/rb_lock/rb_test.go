@@ -1,4 +1,4 @@
-package lockringbuffer
+package rb_lock
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLockRingBuffer_Sanity_Int(t *testing.T) {
+func TestRingBufferLock_Sanity_Int(t *testing.T) {
 	common.SanityTest(t, 32, New[int], func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
@@ -18,7 +18,7 @@ func TestLockRingBuffer_Sanity_Int(t *testing.T) {
 	})
 }
 
-func TestLockRingBuffer_Concurrency_Bytes(t *testing.T) {
+func TestRingBufferLock_Concurrency_Bytes(t *testing.T) {
 	pctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 

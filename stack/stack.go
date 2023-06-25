@@ -13,7 +13,7 @@ type element[Value any] struct {
 	next  atomic.Pointer[element[Value]]
 }
 
-// Stack is a lock-free stack implementation,
+// Stack is a lock-free stack implemented with linked list,
 // based on atomic compare-and-swap operations.
 type Stack[Value any] struct {
 	head     atomic.Pointer[element[Value]]

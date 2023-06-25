@@ -8,7 +8,7 @@ import (
 	"github.com/amirylm/lockfree/queue"
 
 	"github.com/amirylm/lockfree/benchmark/gochan"
-	"github.com/amirylm/lockfree/benchmark/lockringbuffer"
+	"github.com/amirylm/lockfree/benchmark/rb_lock"
 	"github.com/amirylm/lockfree/ringbuffer"
 	"github.com/amirylm/lockfree/stack"
 )
@@ -24,7 +24,7 @@ func Benchmark_PushPopInt(b *testing.B) {
 		},
 		{
 			"ring buffer (lock)",
-			lockringbuffer.New[int](128),
+			rb_lock.New[int](128),
 		},
 		{
 			"stack",
@@ -99,7 +99,7 @@ func benchmarkPushPopBytes(b *testing.B, c, r, w int) {
 		},
 		{
 			"ring buffer (lock)",
-			lockringbuffer.New[int](c),
+			rb_lock.New[int](c),
 			r,
 			w,
 		},

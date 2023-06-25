@@ -13,7 +13,7 @@ type element[Value any] struct {
 	next  atomic.Pointer[element[Value]]
 }
 
-// Queue is a lock-free queue implementation,
+// Queue is a lock-free queue implemented with linked list,
 // based on atomic compare-and-swap operations.
 type Queue[Value any] struct {
 	head     atomic.Pointer[element[Value]]
