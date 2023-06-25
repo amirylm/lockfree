@@ -52,6 +52,8 @@ This Code of Conduct is adapted from the Contributor Covenant ([https://www.cont
 
 ## Contact
 
-If you have any questions or concerns regarding the Code of Conduct or need to report a violation, please contact the project maintainers at [maintainer email address].
+If you have any questions or concerns regarding the Code of Conduct or need to report a violation, please contact the project maintainers.
+
+<br />
 
 Thank you for your cooperation in making the lockfree project a welcoming and inclusive community for all contributors.
