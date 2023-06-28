@@ -6,84 +6,80 @@ import (
 	"github.com/amirylm/lockfree/common"
 )
 
-type element[T any] struct {
-	value T
-	next  atomic.Pointer[element[T]]
+type element[Value any] struct {
+	value Value
+	next  atomic.Pointer[element[Value]]
 }
 
-type Queue[T any] struct {
-	head     atomic.Pointer[element[T]]
-	tail     atomic.Pointer[element[T]]
+type Queue[Value any] struct {
+	head     atomic.Pointer[element[Value]]
+	tail     atomic.Pointer[element[Value]]
 	size     atomic.Int32
 	capacity int32
 }
 
-func newElement[T any](v T) *element[T] {
-	return &element[T]{value: v}
-}
-
-func New[T any](capacity int) common.DataStructure[T] {
-	var head atomic.Pointer[element[T]]
-	var tail atomic.Pointer[element[T]]
-	var e = element[T]{}
+func New[Value any](capacity int) common.DataStructure[Value] {
+	var e = element[Value]{}
+	var head atomic.Pointer[element[Value]]
+	var tail atomic.Pointer[element[Value]]
 	head.Store(&e)
 	tail.Store(&e)
-	return &Queue[T]{
+	return &Queue[Value]{
 		head: head,
 		tail: tail,
 	}
 }
 
-func (q *Queue[T]) Size() int {
+func initElement[Value any](v Value) *element[Value] {
+	return &element[Value]{value: v}
+}
+
+func (q *Queue[Value]) Size() int {
 	return int(q.size.Load())
 }
 
-func (q *Queue[T]) Push(v T) bool {
-	e := newElement(v)
+func (q *Queue[Value]) Push(v Value) bool {
+	e := initElement(v)
 	for {
-		tail := q.tail.Load()
-		next := tail.next.Load()
-		if tail == q.tail.Load() {
-			if next == nil {
-				if tail.next.CompareAndSwap(next, e) {
-					q.tail.CompareAndSwap(tail, e)
-					q.size.Add(1)
-					return true
-				}
-			} else {
-				q.tail.CompareAndSwap(tail, next)
+		t := q.tail.Load()
+		tn := t.next.Load()
+		if tn == nil { // tail next is nil: assign element and shift pointer
+			if t.next.CompareAndSwap(tn, e) {
+				q.tail.CompareAndSwap(t, e)
+				q.size.Add(1)
+				return true
 			}
+		} else {
+			q.tail.CompareAndSwap(t, tn) // reassign tail pointer to next
 		}
 	}
 }
 
-func (q *Queue[T]) Pop() (T, bool) {
-	var t T
+func (q *Queue[Value]) Pop() (Value, bool) {
+	var e Value
 	for {
-		head := q.head.Load()
-		next := head.next.Load()
-		tail := q.tail.Load()
-		if head == q.head.Load() {
-			if head != tail {
-				v := next.value
-				if q.head.CompareAndSwap(head, next) {
-					return v, true
-				}
-				// head and tail are equal (either empty or single entity)
-			} else {
-				if next == nil {
-					return t, false
-				}
-				q.tail.CompareAndSwap(tail, next)
+		t := q.tail.Load()
+		h := q.head.Load()
+		hn := h.next.Load()
+		if h != t { // element exists
+			v := hn.value
+			if q.head.CompareAndSwap(h, hn) { // set head to next
+				return v, true
 			}
+			// head and tail are equal (either empty or single entity)
+		} else {
+			if hn == nil {
+				return e, false
+			}
+			q.tail.CompareAndSwap(t, hn)
 		}
 	}
 }
 
-func (q *Queue[T]) Empty() bool {
+func (q *Queue[Value]) Empty() bool {
 	return q.head.Load() == q.tail.Load()
 }
 
-func (q *Queue[T]) Full() bool {
+func (q *Queue[Value]) Full() bool {
 	return q.size.Load() == q.capacity
 }
