@@ -49,7 +49,7 @@ func main() {
 	var wg2 sync.WaitGroup
 
 	// Create multiple workers to process tasks concurrently
-	workers := 6
+	workers := 5
 	for i := 0; i < workers; i++ {
 		wg1.Add(1)
 		go processTasks(i, c, &wg1, &s, ds)

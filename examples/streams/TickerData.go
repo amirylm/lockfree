@@ -1,4 +1,4 @@
-package examples
+package streams
 
 type TickerData struct {
 	Symbol             string  `json:"symbol"`

@@ -6,109 +6,84 @@ import (
 	"github.com/amirylm/lockfree/common"
 )
 
-// element is an item in the ueue.
-// It contains a pointer to the value + the next element.
-type element[Value any] struct {
-	value atomic.Pointer[Value]
-	next  atomic.Pointer[element[Value]]
+type element[T any] struct {
+	value T
+	next  atomic.Pointer[element[T]]
 }
 
-// Queue is a lock-free queue implementation,
-// based on atomic compare-and-swap operations.
-type Queue[Value any] struct {
-	head     atomic.Pointer[element[Value]]
-	tail     atomic.Pointer[element[Value]]
+type Queue[T any] struct {
+	head     atomic.Pointer[element[T]]
+	tail     atomic.Pointer[element[T]]
 	size     atomic.Int32
 	capacity int32
 }
 
-// New creates a new lock-free queue.
-func New[Value any](capacity int) common.DataStructure[Value] {
-	return &Queue[Value]{
-		head:     atomic.Pointer[element[Value]]{},
-		tail:     atomic.Pointer[element[Value]]{},
-		size:     atomic.Int32{},
-		capacity: int32(capacity),
+func newElement[T any](v T) *element[T] {
+	return &element[T]{value: v}
+}
+
+func New[T any](capacity int) common.DataStructure[T] {
+	var head atomic.Pointer[element[T]]
+	var tail atomic.Pointer[element[T]]
+	var e = element[T]{}
+	head.Store(&e)
+	tail.Store(&e)
+	return &Queue[T]{
+		head: head,
+		tail: tail,
 	}
 }
 
-// Push adds a new value to the end of the queue.
-// It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (q *Queue[Value]) Push(value Value) bool {
-	if q.Full() {
-		return false
-	}
-	e := &element[Value]{}
-	e.value.Store(&value)
+func (q *Queue[T]) Size() int {
+	return int(q.size.Load())
+}
 
+func (q *Queue[T]) Push(v T) bool {
+	e := newElement(v)
 	for {
-		t := q.tail.Load()
-		if q.Empty() {
-			q.head.Store(e)
-			q.tail.Store(q.head.Load())
-			q.size.Add(1)
-			break
+		tail := q.tail.Load()
+		next := tail.next.Load()
+		if tail == q.tail.Load() {
+			if next == nil {
+				if tail.next.CompareAndSwap(next, e) {
+					q.tail.CompareAndSwap(tail, e)
+					q.size.Add(1)
+					return true
+				}
+			} else {
+				q.tail.CompareAndSwap(tail, next)
+			}
 		}
-		(*t).next.Store(e)
-		if q.tail.CompareAndSwap(t, e) {
-			q.size.Add(1)
-			break
-		}
-	}
-	return true
-}
-
-// Pop removes the first value from the queue.
-// returns false in case the queue wasn't changed,
-// which could happen if the queue is empty or
-// if there was a conflict with concurrent Pop()/Push() operation.
-func (q *Queue[Value]) Pop() (Value, bool) {
-	var val Value
-	if q.Empty() {
-		return val, false
-	}
-	h := q.head.Load()
-	if h == nil {
-		return val, false
-	}
-	next, value := (*h).next.Load(), (*h).value.Load()
-	if q.head.CompareAndSwap(h, next) {
-		q.size.Add(-1)
-		if value != nil {
-			val = *value
-		}
-		return val, true
-	}
-	return q.Pop()
-}
-
-// Range iterates over the queue, accepts a custom iterator that returns true to stop.
-func (q *Queue[Value]) Range(iterator func(val Value) bool) {
-	current := q.head.Load()
-	for current != nil {
-		var val Value
-		valp := current.value.Load()
-		if valp != nil {
-			val = *valp
-		}
-		if iterator(val) {
-			return
-		}
-		current = current.next.Load()
 	}
 }
 
-// Size returns the number of items in the stack.
-func (s *Queue[Value]) Size() int {
-	return int(s.size.Load())
+func (q *Queue[T]) Pop() (T, bool) {
+	var t T
+	for {
+		head := q.head.Load()
+		next := head.next.Load()
+		tail := q.tail.Load()
+		if head == q.head.Load() {
+			if head != tail {
+				v := next.value
+				if q.head.CompareAndSwap(head, next) {
+					return v, true
+				}
+				// head and tail are equal (either empty or single entity)
+			} else {
+				if next == nil {
+					return t, false
+				}
+				q.tail.CompareAndSwap(tail, next)
+			}
+		}
+	}
 }
 
-// Len returns the number of items in the stack.
-func (s *Queue[Value]) Full() bool {
-	return s.size.Load() == s.capacity
+func (q *Queue[T]) Empty() bool {
+	return q.head.Load() == q.tail.Load()
 }
 
-// Len returns the number of items in the stack.
-func (s *Queue[Value]) Empty() bool {
-	return s.size.Load() == 0
+func (q *Queue[T]) Full() bool {
+	return q.size.Load() == q.capacity
 }
