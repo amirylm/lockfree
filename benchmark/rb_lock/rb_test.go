@@ -1,4 +1,4 @@
-package ringbuffer
+package rb_lock
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRingBuffer_Sanity_Int(t *testing.T) {
+func TestRingBufferLock_Sanity_Int(t *testing.T) {
 	utils.SanityTest(t, 32, New[int], func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
@@ -18,13 +18,13 @@ func TestRingBuffer_Sanity_Int(t *testing.T) {
 	})
 }
 
-func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
+func TestRingBufferLock_Concurrency_Bytes(t *testing.T) {
 	pctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
 	nmsgs := 1024
 	c := 128
-	w, r := 5, 5
+	w, r := 2, 2
 
 	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)

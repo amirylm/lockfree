@@ -1,39 +1,52 @@
-package lockringbuffer
+package rb_lock
 
 import (
 	"sync"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 )
 
-func New[V any](c int) common.DataStructure[V] {
-	rb := &LockRingBuffer[V]{
+func New[Value any](c int) core.Queue[Value] {
+	rb := &RingBufferLock[Value]{
 		lock:     &sync.RWMutex{},
-		data:     make([]V, c),
+		data:     make([]Value, c),
 		capacity: uint32(c),
 	}
 
 	return rb
 }
 
-// LockRingBuffer is a ring buffer that uses rw mutex to provide thread safety
-type LockRingBuffer[V any] struct {
+type ringBufferState struct {
+	head, tail uint32
+	full       bool
+}
+
+func (state ringBufferState) Empty() bool {
+	return !state.full && state.head == state.tail
+}
+
+func (state ringBufferState) Full() bool {
+	return state.full
+}
+
+// RingBufferLock is a ring buffer that uses rw mutex to provide thread safety
+type RingBufferLock[Value any] struct {
 	lock *sync.RWMutex
 
-	data []V
+	data []Value
 
 	state    ringBufferState
 	capacity uint32
 }
 
-func (rb *LockRingBuffer[V]) Empty() bool {
+func (rb *RingBufferLock[V]) Empty() bool {
 	rb.lock.RLock()
 	defer rb.lock.RUnlock()
 
 	return rb.state.Empty()
 }
 
-func (rb *LockRingBuffer[V]) Full() bool {
+func (rb *RingBufferLock[V]) Full() bool {
 	rb.lock.RLock()
 	defer rb.lock.RUnlock()
 
@@ -41,7 +54,7 @@ func (rb *LockRingBuffer[V]) Full() bool {
 }
 
 // Push adds a new item to the buffer.
-func (rb *LockRingBuffer[V]) Push(v V) bool {
+func (rb *RingBufferLock[V]) Enqueue(v V) bool {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
@@ -59,7 +72,7 @@ func (rb *LockRingBuffer[V]) Push(v V) bool {
 }
 
 // Enqueue pops the next item in the buffer.
-func (rb *LockRingBuffer[V]) Pop() (V, bool) {
+func (rb *RingBufferLock[V]) Dequeue() (V, bool) {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
@@ -78,7 +91,7 @@ func (rb *LockRingBuffer[V]) Pop() (V, bool) {
 	return v, true
 }
 
-func (rb *LockRingBuffer[Value]) Size() int {
+func (rb *RingBufferLock[Value]) Size() int {
 	rb.lock.RLock()
 	defer rb.lock.RUnlock()
 

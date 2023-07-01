@@ -3,13 +3,13 @@ package ringbuffer
 import (
 	"sync/atomic"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 )
 
 // New creates a new RingBuffer
-func New[V any](c int) common.DataStructure[V] {
-	rb := &RingBuffer[V]{
-		elements: make([]*atomic.Pointer[V], c),
+func New[Value any](c int) core.Queue[Value] {
+	rb := &RingBuffer[Value]{
+		elements: make([]*atomic.Pointer[Value], c),
 		capacity: uint32(c),
 		state:    atomic.Uint64{},
 	}
@@ -17,25 +17,25 @@ func New[V any](c int) common.DataStructure[V] {
 	rb.state.Store(new(ringBufferState).Uint64())
 
 	for i := range rb.elements {
-		rb.elements[i] = &atomic.Pointer[V]{}
+		rb.elements[i] = &atomic.Pointer[Value]{}
 	}
 
 	return rb
 }
 
 // RingBuffer is a lock-free ring buffer implementation.
-type RingBuffer[V any] struct {
-	elements []*atomic.Pointer[V]
+type RingBuffer[Value any] struct {
+	elements []*atomic.Pointer[Value]
 
 	capacity uint32
 	state    atomic.Uint64
 }
 
-func (rb *RingBuffer[V]) Empty() bool {
+func (rb *RingBuffer[Value]) Empty() bool {
 	return newState(rb.state.Load()).Empty()
 }
 
-func (rb *RingBuffer[V]) Full() bool {
+func (rb *RingBuffer[Value]) Full() bool {
 	return newState(rb.state.Load()).Full()
 }
 
@@ -49,7 +49,7 @@ func (rb *RingBuffer[Value]) Size() int {
 
 // Push adds a new item to the buffer.
 // We revert changes and retry in case of some conflict with other goroutine.
-func (rb *RingBuffer[V]) Push(v V) bool {
+func (rb *RingBuffer[Value]) Enqueue(v Value) bool {
 	originalState := rb.state.Load()
 	state := newState(originalState)
 	if state.full {
@@ -62,15 +62,15 @@ func (rb *RingBuffer[V]) Push(v V) bool {
 		el.Store(&v)
 		return true
 	}
-	return rb.Push(v)
+	return rb.Enqueue(v)
 }
 
-// Enqueue pops the next item in the buffer.
+// Pop reads the next item in the buffer.
 // We retry in case of some conflict with other goroutine.
-func (rb *RingBuffer[V]) Pop() (V, bool) {
+func (rb *RingBuffer[Value]) Dequeue() (Value, bool) {
 	originalState := rb.state.Load()
 	state := newState(originalState)
-	var v V
+	var v Value
 	if state.Empty() {
 		return v, false
 	}
@@ -78,12 +78,12 @@ func (rb *RingBuffer[V]) Pop() (V, bool) {
 	state.head++
 	state.full = false
 	val := el.Load()
-	if !rb.state.CompareAndSwap(originalState, state.Uint64()) {
-		// in case we have some conflict with another goroutine, retry.
-		return rb.Pop()
+	if rb.state.CompareAndSwap(originalState, state.Uint64()) {
+		if val != nil {
+			v = *val
+		}
+		return v, true
 	}
-	if val != nil {
-		v = *val
-	}
-	return v, true
+	// in case we have some conflict with another goroutine, retry.
+	return rb.Dequeue()
 }
