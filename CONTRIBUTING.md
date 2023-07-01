@@ -66,7 +66,7 @@ If you encounter a bug or have an idea for a new feature, you can open an issue 
 
 ## Code of Conduct
 
-Contributors are expected to adhere to the [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a respectful and inclusive community. Please familiarize yourself with the code of conduct and abide by its principles when participating in the project.
+Contributors are expected to adhere to the Contributor Covenant [Code of Conduct](https://www.contributor-covenant.org/version/2/0/code_of_conduct.html) to ensure a respectful and inclusive community. Please familiarize yourself with the code of conduct and abide by its principles when participating in the project.
 
 ## License
 
