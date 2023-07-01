@@ -50,7 +50,9 @@ To maintain consistency and readability, please follow these code guidelines:
 
 - Use idiomatic Go code.
 
-- Format your code using `gofmt`.
+- Format your code using `make fmt`.
+
+- Lint your code using `make lint`.
 
 - Write meaningful variable and function names.
 

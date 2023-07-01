@@ -18,7 +18,7 @@ These lock-free data structures are designed to provide concurrent access withou
 ### Data Structures
 
 * [x] LL Stack - lock-free stack based on a linked list with `atomic.Pointer` elements.
-* [/] LL Queue - **WIP** lock-free queue based on a linked list with `atomic.Pointer` elements.
+* [ ] LL Queue - **WIP** lock-free queue based on a linked list with `atomic.Pointer` elements.
 * [x] RB Queue - lock-free queue based on a ring buffer that uses a capped slice of `atomic.Pointer` elements.
 
 **NOTE:** lock based data structures were implemented for benchmarking (lock based ring buffer and channel based queue).
