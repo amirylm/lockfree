@@ -32,6 +32,7 @@ go get guthub.com/amirylm/lockfree
 ```go
 import (
     "github.com/amirylm/lockfree/ringbuffer"
+    "github.com/amirylm/lockfree/core"
 )
 
 func main() {
@@ -40,9 +41,9 @@ func main() {
 
     q := ringbuffer.New[[]byte](256)
 
-    common.Push(ctx, q, []byte("hello ring buffer"))
+    core.Enqueue(ctx, q, []byte("hello ring buffer"))
 
-    val, _ := common.Pop(ctx, q)
+    val, _ := core.Dequeue(ctx, q)
     fmt.Println(val)
 }
 ```
