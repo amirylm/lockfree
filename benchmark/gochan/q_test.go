@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGoChanQ_Sanity_Int(t *testing.T) {
-	common.SanityTest(t, 32, New[int], func(i int) int {
+	utils.SanityTest(t, 32, New[int], func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
 		return v == i+1
@@ -26,7 +26,7 @@ func TestGoChanQ_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 2, 2
 
-	reads, writes := common.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
+	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
 		return len(v) > 1 && v[0] == 1

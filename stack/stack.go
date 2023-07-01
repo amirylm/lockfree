@@ -3,7 +3,7 @@ package stack
 import (
 	"sync/atomic"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 )
 
 // element is an item in the stack.
@@ -13,17 +13,17 @@ type element[Value any] struct {
 	next  atomic.Pointer[element[Value]]
 }
 
-// Stack is a lock-free stack implemented with linked list,
+// LLStack is a lock-free stack implemented with linked list,
 // based on atomic compare-and-swap operations.
-type Stack[Value any] struct {
+type LLStack[Value any] struct {
 	head     atomic.Pointer[element[Value]]
 	size     atomic.Int32
 	capacity int32
 }
 
 // New creates a new lock-free stack.
-func New[Value any](capacity int) common.DataStructure[Value] {
-	return &Stack[Value]{
+func New[Value any](capacity int) core.Stack[Value] {
+	return &LLStack[Value]{
 		head:     atomic.Pointer[element[Value]]{},
 		size:     atomic.Int32{},
 		capacity: int32(capacity),
@@ -32,7 +32,7 @@ func New[Value any](capacity int) common.DataStructure[Value] {
 
 // Push adds a new value to the stack.
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (s *Stack[Value]) Push(value Value) bool {
+func (s *LLStack[Value]) Push(value Value) bool {
 	e := &element[Value]{}
 	e.value.Store(&value)
 
@@ -48,7 +48,7 @@ func (s *Stack[Value]) Push(value Value) bool {
 }
 
 // Pop removes the next value from the stack.
-func (s *Stack[Value]) Pop() (Value, bool) {
+func (s *LLStack[Value]) Pop() (Value, bool) {
 	var val Value
 	h := s.head.Load()
 	if h == nil {
@@ -68,7 +68,7 @@ func (s *Stack[Value]) Pop() (Value, bool) {
 }
 
 // Range iterates over the stack, accepts a custom iterator that returns true to stop.
-func (s *Stack[Value]) Range(iterator func(val Value) bool) {
+func (s *LLStack[Value]) Range(iterator func(val Value) bool) {
 	current := s.head.Load()
 	for current != nil {
 		var val Value
@@ -85,16 +85,16 @@ func (s *Stack[Value]) Range(iterator func(val Value) bool) {
 }
 
 // Size returns the number of items in the stack.
-func (s *Stack[Value]) Size() int {
+func (s *LLStack[Value]) Size() int {
 	return int(s.size.Load())
 }
 
 // Len returns the number of items in the stack.
-func (s *Stack[Value]) Full() bool {
+func (s *LLStack[Value]) Full() bool {
 	return s.size.Load() == s.capacity
 }
 
 // Len returns the number of items in the stack.
-func (s *Stack[Value]) Empty() bool {
+func (s *LLStack[Value]) Empty() bool {
 	return s.size.Load() == 0
 }

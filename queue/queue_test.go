@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLinkedListQueue_Sanity_Int(t *testing.T) {
-	common.SanityTest(t, 32, New[int], func(i int) int {
+	utils.SanityTest(t, 32, New[int], func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
 		return v == i+1
@@ -26,7 +26,7 @@ func TestLinkedListQueue_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 2, 2
 
-	_, _ = common.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
+	_, _ = utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
 		return true
@@ -45,7 +45,7 @@ func TestLinkedListQueue_Range(t *testing.T) {
 	numitems := 10
 	q := New[int](numitems).(*Queue[int])
 	for i := 0; i < numitems; i++ {
-		require.True(t, q.Push(i+1))
+		require.True(t, q.Enqueue(i+1))
 	}
 
 	tests := []struct {

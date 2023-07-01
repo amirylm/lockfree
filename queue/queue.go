@@ -3,7 +3,7 @@ package queue
 import (
 	"sync/atomic"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 )
 
 // element is an item in the ueue.
@@ -23,7 +23,7 @@ type Queue[Value any] struct {
 }
 
 // New creates a new lock-free queue.
-func New[Value any](capacity int) common.DataStructure[Value] {
+func New[Value any](capacity int) core.Queue[Value] {
 	return &Queue[Value]{
 		head:     atomic.Pointer[element[Value]]{},
 		tail:     atomic.Pointer[element[Value]]{},
@@ -32,9 +32,9 @@ func New[Value any](capacity int) common.DataStructure[Value] {
 	}
 }
 
-// Push adds a new value to the end of the queue.
+// Enqueue adds a new value to the end of the queue.
 // It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (q *Queue[Value]) Push(value Value) bool {
+func (q *Queue[Value]) Enqueue(value Value) bool {
 	if q.Full() {
 		return false
 	}
@@ -58,11 +58,11 @@ func (q *Queue[Value]) Push(value Value) bool {
 	return true
 }
 
-// Pop removes the first value from the queue.
+// Dequeue removes the first value from the queue.
 // returns false in case the queue wasn't changed,
 // which could happen if the queue is empty or
 // if there was a conflict with concurrent Pop()/Push() operation.
-func (q *Queue[Value]) Pop() (Value, bool) {
+func (q *Queue[Value]) Dequeue() (Value, bool) {
 	var val Value
 	if q.Empty() {
 		return val, false
@@ -79,7 +79,7 @@ func (q *Queue[Value]) Pop() (Value, bool) {
 		}
 		return val, true
 	}
-	return q.Pop()
+	return q.Dequeue()
 }
 
 // Range iterates over the queue, accepts a custom iterator that returns true to stop.

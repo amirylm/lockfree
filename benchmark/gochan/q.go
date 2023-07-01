@@ -1,20 +1,20 @@
 package gochan
 
-import "github.com/amirylm/lockfree/common"
+import "github.com/amirylm/lockfree/core"
 
 type GoChanQ[Value any] struct {
 	cn       chan Value
 	capacity int
 }
 
-func New[Value any](capacity int) common.DataStructure[Value] {
+func New[Value any](capacity int) core.Queue[Value] {
 	return &GoChanQ[Value]{
 		cn:       make(chan Value, capacity),
 		capacity: capacity,
 	}
 }
 
-func (q *GoChanQ[Value]) Push(v Value) bool {
+func (q *GoChanQ[Value]) Enqueue(v Value) bool {
 	select {
 	case q.cn <- v:
 		return true
@@ -23,7 +23,7 @@ func (q *GoChanQ[Value]) Push(v Value) bool {
 	return false
 }
 
-func (q *GoChanQ[Value]) Pop() (Value, bool) {
+func (q *GoChanQ[Value]) Dequeue() (Value, bool) {
 	v, ok := <-q.cn
 	return v, ok
 }

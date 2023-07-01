@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/queue"
 
 	"github.com/amirylm/lockfree/benchmark/gochan"
@@ -13,10 +13,10 @@ import (
 	"github.com/amirylm/lockfree/stack"
 )
 
-func Benchmark_PushPopInt(b *testing.B) {
+func Benchmark_EnqueueDequeueInt(b *testing.B) {
 	tests := []struct {
 		name       string
-		collection common.DataStructure[int]
+		collection core.Queue[int]
 	}{
 		{
 			"ring buffer",
@@ -28,7 +28,7 @@ func Benchmark_PushPopInt(b *testing.B) {
 		},
 		{
 			"stack",
-			stack.New[int](128),
+			stack.NewQueueAdapter[int](128),
 		},
 		{
 			"queue",
@@ -46,8 +46,8 @@ func Benchmark_PushPopInt(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = collection.Push(i)
-				_, _ = collection.Pop()
+				_ = collection.Enqueue(i)
+				_, _ = collection.Dequeue()
 			}
 		})
 	}
@@ -90,41 +90,41 @@ func Benchmark_PushPopBytes_Concurrent_Multi_Writers_64(b *testing.B) {
 }
 
 func benchmarkPushPopBytes(b *testing.B, c, r, w int) {
-	tests := []concurrentTestCase[int]{
+	tests := []concurrentTestCase[[]byte]{
 		{
 			"ring buffer (atomic)",
-			ringbuffer.New[int](c),
+			ringbuffer.New[[]byte](c),
 			r,
 			w,
 		},
 		{
 			"ring buffer (lock)",
-			rb_lock.New[int](c),
+			rb_lock.New[[]byte](c),
 			r,
 			w,
 		},
 		{
 			"queue",
-			queue.New[int](c),
+			queue.New[[]byte](c),
 			r,
 			w,
 		},
 		{
 			"go channel",
-			gochan.New[int](c),
+			gochan.New[[]byte](c),
 			r,
 			w,
 		},
 		{
 			"stack",
-			stack.New[int](c),
+			stack.NewQueueAdapter[[]byte](c),
 			r,
 			w,
 		},
 	}
 
 	for _, tc := range tests {
-		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseInt(tc, b))
+		b.Run(testName(tc.name, tc.readers, tc.writers), testCaseBytes(tc, b))
 	}
 }
 
@@ -134,34 +134,34 @@ func testName(name string, r, w int) string {
 
 type concurrentTestCase[V any] struct {
 	name    string
-	ds      common.DataStructure[V]
+	ds      core.Queue[V]
 	readers int
 	writers int
 }
 
-func testCaseInt(tc concurrentTestCase[int], b *testing.B) func(b *testing.B) {
-	return func(b *testing.B) {
-		b.ReportAllocs()
-		b.ResetTimer()
-		collection := tc.ds
-		for i := 0; i < b.N; i++ {
-			n := tc.writers
-			for n > 0 {
-				n--
-				go func(i int) {
-					_ = collection.Push(i)
-				}(i)
-			}
-			n = tc.readers
-			for n > 0 {
-				n--
-				go func(i, n int) {
-					_, _ = collection.Pop()
-				}(i, tc.readers)
-			}
-		}
-	}
-}
+// func testCaseInt(tc concurrentTestCase[int], b *testing.B) func(b *testing.B) {
+// 	return func(b *testing.B) {
+// 		b.ReportAllocs()
+// 		b.ResetTimer()
+// 		collection := tc.ds
+// 		for i := 0; i < b.N; i++ {
+// 			n := tc.writers
+// 			for n > 0 {
+// 				n--
+// 				go func(i int) {
+// 					_ = collection.Enqueue(i)
+// 				}(i)
+// 			}
+// 			n = tc.readers
+// 			for n > 0 {
+// 				n--
+// 				go func(i, n int) {
+// 					_, _ = collection.Dequeue()
+// 				}(i, tc.readers)
+// 			}
+// 		}
+// 	}
+// }
 
 func testCaseBytes(tc concurrentTestCase[[]byte], b *testing.B) func(b *testing.B) {
 	return func(b *testing.B) {
@@ -173,14 +173,14 @@ func testCaseBytes(tc concurrentTestCase[[]byte], b *testing.B) func(b *testing.
 			for n > 0 {
 				n--
 				go func(i int) {
-					_ = collection.Push([]byte(fmt.Sprintf("%06d", i)))
+					_ = collection.Enqueue([]byte(fmt.Sprintf("%06d", i)))
 				}(i)
 			}
 			n = tc.readers
 			for n > 0 {
 				n--
 				go func(i, n int) {
-					_, _ = collection.Pop()
+					_, _ = collection.Dequeue()
 				}(i, tc.readers)
 			}
 		}

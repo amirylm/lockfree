@@ -3,11 +3,11 @@ package ringbuffer
 import (
 	"sync/atomic"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 )
 
 // New creates a new RingBuffer
-func New[Value any](c int) common.DataStructure[Value] {
+func New[Value any](c int) core.Queue[Value] {
 	rb := &RingBuffer[Value]{
 		elements: make([]*atomic.Pointer[Value], c),
 		capacity: uint32(c),
@@ -49,7 +49,7 @@ func (rb *RingBuffer[Value]) Size() int {
 
 // Push adds a new item to the buffer.
 // We revert changes and retry in case of some conflict with other goroutine.
-func (rb *RingBuffer[Value]) Push(v Value) bool {
+func (rb *RingBuffer[Value]) Enqueue(v Value) bool {
 	originalState := rb.state.Load()
 	state := newState(originalState)
 	if state.full {
@@ -62,12 +62,12 @@ func (rb *RingBuffer[Value]) Push(v Value) bool {
 		el.Store(&v)
 		return true
 	}
-	return rb.Push(v)
+	return rb.Enqueue(v)
 }
 
 // Pop reads the next item in the buffer.
 // We retry in case of some conflict with other goroutine.
-func (rb *RingBuffer[Value]) Pop() (Value, bool) {
+func (rb *RingBuffer[Value]) Dequeue() (Value, bool) {
 	originalState := rb.state.Load()
 	state := newState(originalState)
 	var v Value
@@ -85,5 +85,5 @@ func (rb *RingBuffer[Value]) Pop() (Value, bool) {
 		return v, true
 	}
 	// in case we have some conflict with another goroutine, retry.
-	return rb.Pop()
+	return rb.Dequeue()
 }

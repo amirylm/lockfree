@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStack_Sanity_Int(t *testing.T) {
 	n := 32
-	common.SanityTest(t, n, New[int], func(i int) int {
+	utils.SanityTest(t, n, NewQueueAdapter[int], func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
 		return v == n-i
@@ -27,7 +27,7 @@ func TestStack_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 2, 2
 
-	reads, writes := common.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
+	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, NewQueueAdapter[[]byte], func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
 		return len(v) > 1 && v[0] == 1
@@ -41,14 +41,14 @@ func TestStack_Concurrency_Bytes(t *testing.T) {
 
 func TestStack_Range(t *testing.T) {
 	nitems := 10
-	s := New[int](nitems * 2).(*Stack[int])
+	s := New[int](nitems * 2).(*LLStack[int])
 	for i := 0; i < nitems; i++ {
 		require.True(t, s.Push(i+1))
 	}
 
 	tests := []struct {
 		name     string
-		stack    *Stack[int]
+		stack    *LLStack[int]
 		iterator func(val int) bool
 		want     int
 	}{

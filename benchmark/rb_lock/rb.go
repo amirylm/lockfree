@@ -3,10 +3,10 @@ package rb_lock
 import (
 	"sync"
 
-	"github.com/amirylm/lockfree/common"
+	"github.com/amirylm/lockfree/core"
 )
 
-func New[Value any](c int) common.DataStructure[Value] {
+func New[Value any](c int) core.Queue[Value] {
 	rb := &RingBufferLock[Value]{
 		lock:     &sync.RWMutex{},
 		data:     make([]Value, c),
@@ -54,7 +54,7 @@ func (rb *RingBufferLock[V]) Full() bool {
 }
 
 // Push adds a new item to the buffer.
-func (rb *RingBufferLock[V]) Push(v V) bool {
+func (rb *RingBufferLock[V]) Enqueue(v V) bool {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
@@ -72,7 +72,7 @@ func (rb *RingBufferLock[V]) Push(v V) bool {
 }
 
 // Enqueue pops the next item in the buffer.
-func (rb *RingBufferLock[V]) Pop() (V, bool) {
+func (rb *RingBufferLock[V]) Dequeue() (V, bool) {
 	rb.lock.Lock()
 	defer rb.lock.Unlock()
 
