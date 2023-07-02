@@ -58,6 +58,12 @@ To maintain consistency and readability, please follow these code guidelines:
 
 - Include comments to explain complex logic or provide context.
 
+- Use `make test` to run all tests
+
+- Use `make bench` to run bechmarks
+
+- Use `make bench-load` to run load testing bechmarks 
+
 - Add appropriate tests to ensure the correctness of your changes.
 
 ## Bug Reports and Feature Requests
