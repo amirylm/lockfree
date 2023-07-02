@@ -22,13 +22,16 @@ type Queue[Value any] struct {
 
 func New[Value any](capacity int) core.Queue[Value] {
 	var e = element[Value]{}
-	q := &Queue[Value]{}
+	q := &Queue[Value]{capacity: int32(capacity)}
 	q.head.Store(&e)
 	q.tail.Store(&e)
 	return q
 }
 
 func (q *Queue[Value]) Enqueue(v Value) bool {
+	if q.Full() {
+		return false
+	}
 	e := &element[Value]{value: v}
 	for {
 		t := q.tail.Load()
@@ -54,6 +57,7 @@ func (q *Queue[Value]) Dequeue() (Value, bool) {
 		if h != t { // element exists
 			v := hn.value
 			if q.head.CompareAndSwap(h, hn) { // set head to next
+				q.size.Add(-1)
 				return v, true
 			}
 			// head and tail are equal (either empty or single entity)
@@ -79,7 +83,8 @@ func (q *Queue[Value]) Full() bool {
 }
 
 func (q *Queue[Value]) Range(iterator func(val Value) bool) {
-	current := q.head.Load()
+	// head pointer never holds a value, only denotes start
+	current := q.head.Load().next.Load()
 	for current != nil {
 		v := current.value
 		if iterator(v) {
