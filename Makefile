@@ -15,5 +15,7 @@ test:
 	@go test -v -race -timeout=10m ${TEST_PKG} 
 
 bench:
-	# @go test -benchmem -bench ^Benchmark* ./benchmark/...
-	go test -benchmem -bench . ./benchmark/...
+	@go test -benchmem -bench ^Bench_* ./benchmark
+
+bench-load:
+	@go test -benchmem -bench ^Bench_* ./benchmark/load/...
