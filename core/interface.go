@@ -38,7 +38,7 @@ func Enqueue[T any](ctx context.Context, ds Queue[T], val T) bool {
 	return true
 }
 
-// Pop is a safe function to read values from the ds,
+// Dequeue is a safe function to read values from the ds,
 // until the context is done.
 func Dequeue[T any](ctx context.Context, ds Queue[T]) (T, bool) {
 	element, ok := ds.Dequeue()

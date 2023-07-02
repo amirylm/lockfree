@@ -6,10 +6,8 @@ import (
 	"github.com/amirylm/lockfree/core"
 )
 
-// element is an item in the ueue.
-// It contains a pointer to the value + the next element.
 type element[Value any] struct {
-	value atomic.Pointer[Value]
+	value Value
 	next  atomic.Pointer[element[Value]]
 }
 
@@ -22,93 +20,71 @@ type Queue[Value any] struct {
 	capacity int32
 }
 
-// New creates a new lock-free queue.
 func New[Value any](capacity int) core.Queue[Value] {
-	return &Queue[Value]{
-		head:     atomic.Pointer[element[Value]]{},
-		tail:     atomic.Pointer[element[Value]]{},
-		size:     atomic.Int32{},
-		capacity: int32(capacity),
-	}
+	var e = element[Value]{}
+	q := &Queue[Value]{}
+	q.head.Store(&e)
+	q.tail.Store(&e)
+	return q
 }
 
-// Enqueue adds a new value to the end of the queue.
-// It keeps retrying in case of conflict with concurrent Pop()/Push() operations.
-func (q *Queue[Value]) Enqueue(value Value) bool {
-	if q.Full() {
-		return false
-	}
-	e := &element[Value]{}
-	e.value.Store(&value)
-
+func (q *Queue[Value]) Enqueue(v Value) bool {
+	e := &element[Value]{value: v}
 	for {
 		t := q.tail.Load()
-		if t == nil {
-			q.head.Store(e)
-			q.tail.Store(q.head.Load())
-			q.size.Add(1)
-			break
-		}
-		(*t).next.Store(e)
-		if q.tail.CompareAndSwap(t, e) {
-			q.size.Add(1)
-			break
+		tn := t.next.Load()
+		if tn == nil { // tail next is nil: assign element and shift pointer
+			if t.next.CompareAndSwap(tn, e) {
+				q.tail.CompareAndSwap(t, e)
+				q.size.Add(1)
+				return true
+			}
+		} else {
+			q.tail.CompareAndSwap(t, tn) // reassign tail pointer to next
 		}
 	}
-	return true
 }
 
-// Dequeue removes the first value from the queue.
-// returns false in case the queue wasn't changed,
-// which could happen if the queue is empty or
-// if there was a conflict with concurrent Pop()/Push() operation.
 func (q *Queue[Value]) Dequeue() (Value, bool) {
-	var val Value
-	if q.Empty() {
-		return val, false
-	}
-	h := q.head.Load()
-	if h == nil {
-		return val, false
-	}
-	next, value := (*h).next.Load(), (*h).value.Load()
-	if q.head.CompareAndSwap(h, next) {
-		q.size.Add(-1)
-		if value != nil {
-			val = *value
+	var e Value
+	for {
+		t := q.tail.Load()
+		h := q.head.Load()
+		hn := h.next.Load()
+		if h != t { // element exists
+			v := hn.value
+			if q.head.CompareAndSwap(h, hn) { // set head to next
+				return v, true
+			}
+			// head and tail are equal (either empty or single entity)
+		} else {
+			if hn == nil {
+				return e, false
+			}
+			q.tail.CompareAndSwap(t, hn)
 		}
-		return val, true
-	}
-	return q.Dequeue()
-}
-
-// Range iterates over the queue, accepts a custom iterator that returns true to stop.
-func (q *Queue[Value]) Range(iterator func(val Value) bool) {
-	current := q.head.Load()
-	for current != nil {
-		var val Value
-		valp := current.value.Load()
-		if valp != nil {
-			val = *valp
-		}
-		if iterator(val) {
-			return
-		}
-		current = current.next.Load()
 	}
 }
 
-// Size returns the number of items in the stack.
 func (q *Queue[Value]) Size() int {
 	return int(q.size.Load())
 }
 
-// Len returns the number of items in the stack.
+func (q *Queue[Value]) Empty() bool {
+	return q.head.Load() == q.tail.Load()
+}
+
 func (q *Queue[Value]) Full() bool {
 	return q.size.Load() == q.capacity
 }
 
-// Len returns the number of items in the stack.
-func (q *Queue[Value]) Empty() bool {
-	return q.size.Load() == 0
+func (q *Queue[Value]) Range(iterator func(val Value) bool) {
+	current := q.head.Load()
+	for current != nil {
+		v := current.value
+		if iterator(v) {
+			return
+		}
+		current = current.next.Load()
+	}
 }
