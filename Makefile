@@ -16,6 +16,14 @@ fmt:
 test:
 	@go test -v -race -timeout=10m ${TEST_PKG} 
 
+test-cov:
+	@go test -v -race -timeout=10m -coverprofile cover.out ./stack ./ringbuffer ./queue ./reactor
+
+test-open-cov:
+	@make test-cov
+	@go tool cover -html cover.out -o cover.html
+	open cover.html
+
 bench:
 	@go test -benchmem -bench ^Bench_* ./benchmark
 
