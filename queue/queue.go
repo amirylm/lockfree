@@ -84,7 +84,11 @@ func (q *Queue[Value]) Full() bool {
 
 func (q *Queue[Value]) Range(iterator func(val Value) bool) {
 	// head pointer never holds a value, only denotes start
-	current := q.head.Load().next.Load()
+	h := q.head.Load()
+	if h == nil {
+		return
+	}
+	current := h.next.Load()
 	for current != nil {
 		v := current.value
 		if iterator(v) {
