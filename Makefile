@@ -4,8 +4,10 @@ lint-prepare:
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s latest
 
 lint:
-	# test -f ./bin/golangci-lint || make lint-prepare
-	# ./bin/golangci-lint run -v --timeout=5m ./...
+	test -f ./bin/golangci-lint || make lint-prepare
+	./bin/golangci-lint run -v --timeout=5m ./...
+
+lint-docker:
 	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.53.2 golangci-lint run -v --timeout=5m ./...
 
 fmt:
