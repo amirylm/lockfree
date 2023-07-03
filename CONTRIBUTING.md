@@ -1,6 +1,6 @@
 # Contributing to lockfree
 
-Thank you for your interest in contributing to lockfree! We welcome contributions from the community to help improve and enhance the project. By contributing, you can make a positive impact and help us build better lock-free data structures for Go.
+Thank you for your interest in contributing to lockfree! We welcome contributions from the community to help improve, enhance and expand the project. By contributing, you can make a positive impact and help us build better lock-free data structures for Go.
 
 To ensure a smooth and effective contribution process, please review the guidelines outlined below.
 

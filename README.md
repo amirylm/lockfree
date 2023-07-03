@@ -13,15 +13,15 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 ## Overview
 
 Lock-free data structures implemented with native Golang, based on atomic compare-and-swap operations.
-These lock-free data structures are designed to provide concurrent access without the need for traditional locking mechanisms, improving performance and scalability in highly concurrent environments.
+These lock-free data structures are designed to provide concurrent access without relying on traditional locking mechanisms, improving performance and scalability in highly concurrent environments.
 
 ### Data Structures
 
 * [x] LL Stack - lock-free stack based on a linked list with `atomic.Pointer` elements.
-* [ ] LL Queue - lock-free queue based on a linked list with `atomic.Pointer` elements.
+* [x] LL Queue - lock-free queue based on a linked list with `atomic.Pointer` elements.
 * [x] RB Queue - lock-free queue based on a ring buffer that uses a capped slice of `atomic.Pointer` elements.
 
-**NOTE:** lock based data structures were implemented for benchmarking (lock based ring buffer and channel based queue).
+**NOTE:** lock based data structures were implemented for benchmarking purposes (lock based ring buffer and channel based queue).
 
 ## Usage
 
@@ -48,12 +48,12 @@ func main() {
 }
 ```
 
-You can find examples of usage in `./examples` folder. 
-In addition, you can find more examples in tests and benchmarks.
+Detailed examples of usage can be found in `./examples` folder. 
+Additionally, you can find more examples in tests and benchmarks.
 
 ## Contributing
 
-Contributions to lockfree are welcome and encouraged! If you find a bug or have an idea for an improvement, please open an issue or submit a pull request.
+Contributions to lockfree are welcomed and encouraged! If you find a bug or have an idea for an improvement, please open an issue or submit a pull request.
 
 Before contributing, please make sure to read the [Contributing Guidelines](CONTRIBUTING.md) for more information.
 
