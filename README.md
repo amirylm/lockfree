@@ -25,13 +25,13 @@ These lock-free data structures are designed to provide concurrent access withou
 
 ### Extras
 
-* [x] Reactor - lock-free reactor that provides a thread-safe, non-blocking, asynchronous event processing. \
+* [x] Reactor - lock-free reactor that provides thread-safe, non-blocking, asynchronous event processing. \
 It uses lock-free queues for events and control messages.
 
 ## Usage
 
 ```shell
-go get guthub.com/amirylm/lockfree
+go get github.com/amirylm/lockfree
 ```
 
 ```go
