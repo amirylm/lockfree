@@ -49,23 +49,23 @@ func (q *Queue[Value]) Enqueue(v Value) bool {
 }
 
 func (q *Queue[Value]) Dequeue() (Value, bool) {
-	var e Value
+	var v Value
 	for {
 		t := q.tail.Load()
 		h := q.head.Load()
-		hn := h.next.Load()
+		next := h.next.Load()
 		if h != t { // element exists
-			v := hn.value
-			if q.head.CompareAndSwap(h, hn) { // set head to next
+			v := next.value
+			if q.head.CompareAndSwap(h, next) { // set head to next
 				q.size.Add(-1)
 				return v, true
 			}
 			// head and tail are equal (either empty or single entity)
 		} else {
-			if hn == nil {
-				return e, false
+			if next == nil {
+				return v, false
 			}
-			q.tail.CompareAndSwap(t, hn)
+			q.tail.CompareAndSwap(t, next)
 		}
 	}
 }
