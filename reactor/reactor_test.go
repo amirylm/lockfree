@@ -29,6 +29,11 @@ func TestReactor(t *testing.T) {
 		}, 0, f, f, f)
 		defer r.Unregister("test")
 
+		// double register should not work
+		r.Register("test", func(v []byte) bool {
+			return bytes.Equal(v, []byte("hello"))
+		}, 0, f)
+
 		go r.Enqueue([]byte("hello"))
 		go r.Enqueue([]byte("world"))
 		go r.Enqueue([]byte("hello-world"))
@@ -67,8 +72,114 @@ func TestReactor(t *testing.T) {
 
 	t.Run("close", func(t *testing.T) {
 		require.NoError(t, r.Close())
+		require.NoError(t, r.Close())
 		r.Enqueue([]byte("hello"))
 	})
+}
+
+func TestReactor_handleControl(t *testing.T) {
+	r := New[[]byte](nil)
+
+	tests := []struct {
+		name     string
+		existing []service[[]byte]
+		events   []controlEvent[[]byte]
+		want     []service[[]byte]
+	}{
+		{
+			name:     "empty",
+			existing: nil,
+			events: []controlEvent[[]byte]{
+				{
+					control: registerService,
+					svc: service[[]byte]{
+						id: "test",
+					},
+				},
+			},
+			want: []service[[]byte]{
+				{
+					id: "test",
+				},
+			},
+		},
+		{
+			name: "unknown control",
+			existing: []service[[]byte]{
+				{
+					id: "test",
+				},
+			},
+			events: []controlEvent[[]byte]{
+				{
+					control: 5,
+					svc: service[[]byte]{
+						id: "test-2",
+					},
+				},
+			},
+			want: []service[[]byte]{
+				{
+					id: "test",
+				},
+			},
+		},
+		{
+			name: "register",
+			existing: []service[[]byte]{
+				{
+					id: "test",
+				},
+			},
+			events: []controlEvent[[]byte]{
+				{
+					control: registerService,
+					svc: service[[]byte]{
+						id: "test2",
+					},
+				},
+			},
+			want: []service[[]byte]{
+				{
+					id: "test",
+				},
+				{
+					id: "test2",
+				},
+			},
+		},
+		{
+			name: "double register",
+			existing: []service[[]byte]{
+				{
+					id: "test",
+				},
+			},
+			events: []controlEvent[[]byte]{
+				{
+					control: registerService,
+					svc: service[[]byte]{
+						id: "test",
+					},
+				},
+			},
+			want: []service[[]byte]{
+				{
+					id: "test",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			services := tc.existing
+			for _, e := range tc.events {
+				services = r.handleControl(services, e)
+			}
+			require.Equal(t, tc.want, services)
+		})
+	}
 }
 
 func newCounter[T any]() (*atomic.Int32, func(T)) {

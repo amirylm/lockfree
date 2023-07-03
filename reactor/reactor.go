@@ -75,6 +75,7 @@ func (r *reactor[T]) Close() error {
 		return nil
 	}
 	(*cancel)()
+	r.done.Store(nil)
 	return nil
 }
 
