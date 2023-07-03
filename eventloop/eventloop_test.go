@@ -3,12 +3,17 @@ package eventloop
 import (
 	"bytes"
 	"context"
+	"runtime"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEventLoop_Sanity(t *testing.T) {
 	el := New[[]byte](1, nil)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*250)
 	defer cancel()
 
 	t.Log("starting event loop")
@@ -17,28 +22,39 @@ func TestEventLoop_Sanity(t *testing.T) {
 		_ = el.Start(ctx)
 	}()
 
-	logf := func(v []byte) {
-		t.Logf("got: %s", v)
+	helloCount := atomic.Int32{}
+	helloF := func(v []byte) {
+		helloCount.Add(1)
 	}
-
 	el.Register("test", func(v []byte) bool {
 		return bytes.Equal(v, []byte("hello"))
-	}, 0, logf, logf)
+	}, 0, helloF, helloF)
 
+	worldCount := atomic.Int32{}
+	worldF := func(v []byte) {
+		worldCount.Add(1)
+	}
 	el.Register("test-concurrent", func(v []byte) bool {
 		return bytes.Equal(v, []byte("world"))
-	}, 2, logf, logf, logf)
+	}, 2, worldF, worldF, worldF, worldF, worldF)
 
 	el.Register("done", func(v []byte) bool {
 		return bytes.Equal(v, []byte("done"))
 	}, 0, func(b []byte) {
-		cancel()
+		t.Log("closing event loop")
+		require.NoError(t, el.Close())
 	})
 
 	el.Enqueue([]byte("hello"))
 	el.Enqueue([]byte("world"))
 
+	for int32(5) > worldCount.Load() && ctx.Err() == nil {
+		runtime.Gosched()
+	}
 	go el.Enqueue([]byte("done"))
 
 	<-ctx.Done()
+
+	require.Equal(t, int32(2), helloCount.Load())
+	require.Equal(t, int32(5), worldCount.Load())
 }

@@ -53,8 +53,8 @@ type controlEvent[T any] struct {
 type eventLoop[T any] struct {
 	eventQ   core.Queue[T]
 	controlQ core.Queue[controlEvent[T]]
-	services []service[T]
 
+	done    atomic.Pointer[context.CancelFunc]
 	workers atomic.Int32
 }
 
@@ -65,7 +65,7 @@ func New[T any](workers int, q core.Queue[T]) *eventLoop[T] {
 	el := &eventLoop[T]{
 		eventQ:   q,
 		controlQ: ringbuffer.New[controlEvent[T]](32),
-		services: []service[T]{},
+		done:     atomic.Pointer[context.CancelFunc]{},
 		workers:  atomic.Int32{},
 	}
 
@@ -74,17 +74,24 @@ func New[T any](workers int, q core.Queue[T]) *eventLoop[T] {
 	return el
 }
 
+func (el *eventLoop[T]) Close() error {
+	cancel := el.done.Load()
+	if cancel == nil {
+		return nil
+	}
+	(*cancel)()
+	return nil
+}
+
 func (el *eventLoop[T]) Start(pctx context.Context) error {
 	ctx, cancel := context.WithCancel(pctx)
-	defer cancel()
+	el.done.Store(&cancel)
 
 	var services []service[T]
 	for ctx.Err() == nil {
 		c, ok := el.controlQ.Dequeue()
 		if ok {
-			el.handleControl(c)
-			services = make([]service[T], len(el.services))
-			copy(services, el.services)
+			services = el.handleControl(services, c)
 			continue
 		}
 		e, ok := el.eventQ.Dequeue()
@@ -147,24 +154,26 @@ func (el *eventLoop[T]) handleEvent(t T, services ...service[T]) {
 	}
 }
 
-func (el *eventLoop[T]) handleControl(ce controlEvent[T]) {
+func (el *eventLoop[T]) handleControl(services []service[T], ce controlEvent[T]) []service[T] {
 	switch ce.control {
 	case registerService:
-		for _, svc := range el.services {
+		for _, svc := range services {
 			if svc.id == ce.svc.id {
-				return
+				return services
 			}
 		}
-		el.services = append(el.services, ce.svc)
+		return append(services, ce.svc)
 	case unregisterService:
-		cleaned := make([]service[T], len(el.services))
+		cleaned := make([]service[T], len(services))
 		i := 0
-		for _, svc := range el.services {
+		for _, svc := range services {
 			if svc.id != ce.svc.id {
 				cleaned[i] = svc
 				i++
 			}
 		}
-		el.services = cleaned[:i]
+		return cleaned[:i]
+	default:
+		return services
 	}
 }
