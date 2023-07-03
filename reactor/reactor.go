@@ -1,4 +1,4 @@
-package eventloop
+package reactor
 
 import (
 	"context"
@@ -15,14 +15,13 @@ type Handler[T any] func(T)
 // Selector is a predicate that selects events for a given set of handlers
 type Selector[T any] func(T) bool
 
-// EventLoop is a lock-free event loop that provides
+// Reactor is a lock-free event loop that provides
 // a thread-safe, non-blocking, asynchronous event processing.
-// It is based on the reactor pattern and
-// uses lock-free queues for events and control messages.
-type EventLoop[T any] interface {
+// It uses lock-free queues for events and control messages.
+type Reactor[T any] interface {
 	// Start starts the event loop
 	Start(context.Context) error
-	// Enqueue adds a new event to the event loop
+	// Enqueue adds a new event to the event queue
 	Enqueue(T)
 	// Register registers handlers. It accepts the event selector, amount of goroutine workers
 	// that will be used to process events, and the handlers that will be called.
@@ -50,32 +49,28 @@ type controlEvent[T any] struct {
 	svc     service[T]
 }
 
-type eventLoop[T any] struct {
+type reactor[T any] struct {
 	eventQ   core.Queue[T]
 	controlQ core.Queue[controlEvent[T]]
 
-	done    atomic.Pointer[context.CancelFunc]
-	workers atomic.Int32
+	done atomic.Pointer[context.CancelFunc]
 }
 
-func New[T any](workers int, q core.Queue[T]) *eventLoop[T] {
+func New[T any](q core.Queue[T]) *reactor[T] {
 	if q == nil {
 		q = ringbuffer.NewWithOverride[T](256)
 	}
-	el := &eventLoop[T]{
+	el := &reactor[T]{
 		eventQ:   q,
 		controlQ: ringbuffer.New[controlEvent[T]](32),
 		done:     atomic.Pointer[context.CancelFunc]{},
-		workers:  atomic.Int32{},
 	}
-
-	el.workers.Store(int32(workers))
 
 	return el
 }
 
-func (el *eventLoop[T]) Close() error {
-	cancel := el.done.Load()
+func (r *reactor[T]) Close() error {
+	cancel := r.done.Load()
 	if cancel == nil {
 		return nil
 	}
@@ -83,20 +78,20 @@ func (el *eventLoop[T]) Close() error {
 	return nil
 }
 
-func (el *eventLoop[T]) Start(pctx context.Context) error {
+func (r *reactor[T]) Start(pctx context.Context) error {
 	ctx, cancel := context.WithCancel(pctx)
-	el.done.Store(&cancel)
+	r.done.Store(&cancel)
 
 	var services []service[T]
 	for ctx.Err() == nil {
-		c, ok := el.controlQ.Dequeue()
+		c, ok := r.controlQ.Dequeue()
 		if ok {
-			services = el.handleControl(services, c)
+			services = r.handleControl(services, c)
 			continue
 		}
-		e, ok := el.eventQ.Dequeue()
+		e, ok := r.eventQ.Dequeue()
 		if ok {
-			go el.handleEvent(e, services...)
+			go r.handleEvent(e, services...)
 			continue
 		}
 		runtime.Gosched()
@@ -105,8 +100,8 @@ func (el *eventLoop[T]) Start(pctx context.Context) error {
 	return ctx.Err()
 }
 
-func (el *eventLoop[T]) Register(serviceID string, selector Selector[T], workers int, handlers ...Handler[T]) {
-	el.controlQ.Enqueue(controlEvent[T]{
+func (r *reactor[T]) Register(serviceID string, selector Selector[T], workers int, handlers ...Handler[T]) {
+	r.controlQ.Enqueue(controlEvent[T]{
 		control: registerService,
 		svc: service[T]{
 			id:       serviceID,
@@ -117,8 +112,8 @@ func (el *eventLoop[T]) Register(serviceID string, selector Selector[T], workers
 	})
 }
 
-func (el *eventLoop[T]) Unregister(serviceID string) {
-	el.controlQ.Enqueue(controlEvent[T]{
+func (r *reactor[T]) Unregister(serviceID string) {
+	r.controlQ.Enqueue(controlEvent[T]{
 		control: unregisterService,
 		svc: service[T]{
 			id: serviceID,
@@ -126,13 +121,13 @@ func (el *eventLoop[T]) Unregister(serviceID string) {
 	})
 }
 
-func (el *eventLoop[T]) Enqueue(t T) {
-	el.eventQ.Enqueue(t)
+func (r *reactor[T]) Enqueue(t T) {
+	r.eventQ.Enqueue(t)
 }
 
 // handleEvent handles an event by calling the appropriate handlers.
 // Runs in an event thread, and might spawn worker threads.
-func (el *eventLoop[T]) handleEvent(t T, services ...service[T]) {
+func (r *reactor[T]) handleEvent(t T, services ...service[T]) {
 	for _, svc := range services {
 		if svc.selector(t) {
 			workers := atomic.Int32{}
@@ -154,7 +149,7 @@ func (el *eventLoop[T]) handleEvent(t T, services ...service[T]) {
 	}
 }
 
-func (el *eventLoop[T]) handleControl(services []service[T], ce controlEvent[T]) []service[T] {
+func (r *reactor[T]) handleControl(services []service[T], ce controlEvent[T]) []service[T] {
 	switch ce.control {
 	case registerService:
 		for _, svc := range services {
@@ -164,15 +159,15 @@ func (el *eventLoop[T]) handleControl(services []service[T], ce controlEvent[T])
 		}
 		return append(services, ce.svc)
 	case unregisterService:
-		cleaned := make([]service[T], len(services))
+		updated := make([]service[T], len(services))
 		i := 0
 		for _, svc := range services {
 			if svc.id != ce.svc.id {
-				cleaned[i] = svc
+				updated[i] = svc
 				i++
 			}
 		}
-		return cleaned[:i]
+		return updated[:i]
 	default:
 		return services
 	}
