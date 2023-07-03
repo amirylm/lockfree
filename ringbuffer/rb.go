@@ -6,6 +6,13 @@ import (
 	"github.com/amirylm/lockfree/core"
 )
 
+func NewWithOverride[Value any](c int) core.Queue[Value] {
+	rb := New[Value](c).(*RingBuffer[Value])
+	rb.override = true
+
+	return rb
+}
+
 // New creates a new RingBuffer
 func New[Value any](c int) core.Queue[Value] {
 	rb := &RingBuffer[Value]{
@@ -23,12 +30,14 @@ func New[Value any](c int) core.Queue[Value] {
 	return rb
 }
 
-// RingBuffer is a lock-free ring buffer implementation.
+// RingBuffer is a lock-free queue implementation based on a ring buffer.
 type RingBuffer[Value any] struct {
 	elements []*atomic.Pointer[Value]
 
 	capacity uint32
 	state    atomic.Uint64
+
+	override bool
 }
 
 func (rb *RingBuffer[Value]) Empty() bool {
@@ -53,7 +62,11 @@ func (rb *RingBuffer[Value]) Enqueue(v Value) bool {
 	originalState := rb.state.Load()
 	state := newState(originalState)
 	if state.full {
-		return false
+		if !rb.override {
+			return false
+		}
+		// in case we override items
+		_, _ = rb.Dequeue()
 	}
 	el := rb.elements[state.tail%rb.capacity]
 	state.tail++

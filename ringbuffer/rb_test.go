@@ -37,3 +37,18 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 	expectedR := int64(nmsgs * r) // num of msgs * num of writers
 	require.Equal(t, expectedR, reads, "num of reads is wrong")
 }
+
+func TestRingBuffer_Overflow(t *testing.T) {
+	rb := NewWithOverride[int](128)
+	overflow := 5
+	n := 128
+	require.True(t, rb.Empty(), "should be empty")
+	for i := 0; i < n+overflow; i++ {
+		require.True(t, rb.Enqueue(i+1), "failed to enqueue element in index %d", i)
+	}
+	for i := 0; i < n; i++ {
+		v, ok := rb.Dequeue()
+		require.True(t, ok, "failed to read element in index %d", i)
+		require.Equal(t, i+overflow+1, v)
+	}
+}
