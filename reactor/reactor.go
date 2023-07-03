@@ -15,8 +15,7 @@ type Handler[T any] func(T)
 // Selector is a predicate that selects events for a given set of handlers
 type Selector[T any] func(T) bool
 
-// Reactor is a lock-free event loop that provides
-// a thread-safe, non-blocking, asynchronous event processing.
+// Reactor provides a thread-safe, non-blocking, asynchronous event processing.
 // It uses lock-free queues for events and control messages.
 type Reactor[T any] interface {
 	// Start starts the event loop

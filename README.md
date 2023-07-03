@@ -23,6 +23,11 @@ These lock-free data structures are designed to provide concurrent access withou
 
 **NOTE:** lock based data structures were implemented for benchmarking purposes (lock based ring buffer and channel based queue).
 
+### Extras
+
+* [x] Reactor - lock-free reactor that provides a thread-safe, non-blocking, asynchronous event processing. \
+It uses lock-free queues for events and control messages.
+
 ## Usage
 
 ```shell
