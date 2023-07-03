@@ -44,8 +44,6 @@ func Read(c core.Queue[string], rid int, wg *sync.WaitGroup, s *State, ds string
 			v, ok := c.Dequeue()
 			if ok {
 				fmt.Printf("From %d : %v\n", rid, v)
-			} else {
-				// fmt.Printf("From %d : FAILED TO READ %v\n", rid, v)
 			}
 		}
 	}
