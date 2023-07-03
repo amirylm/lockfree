@@ -1,6 +1,6 @@
 package ringbuffer
 
-// ringBufferState holds the state of the ring buffer
+// ringBufferState holds the state of the ring buffer.
 // the state can be de/encoded to uin64 to be stored as an atomic.Uint64.
 type ringBufferState struct {
 	head, tail uint32
@@ -18,6 +18,11 @@ func newState(state uint64) ringBufferState {
 	}
 }
 
+// Uint64 encode the state into a uint64, with the following bits:
+//   - [0] - not in use
+//   - [1] - full (bool)
+//   - [2-32] - head (int30)
+//   - [33-63] - tail (int30)
 func (state ringBufferState) Uint64() uint64 {
 	fullBit := uint64(0)
 	if state.full {
