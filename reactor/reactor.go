@@ -57,11 +57,11 @@ type reactor[T any] struct {
 
 func New[T any](q core.Queue[T]) *reactor[T] {
 	if q == nil {
-		q = ringbuffer.NewWithOverride[T](256)
+		q = ringbuffer.New[T](ringbuffer.WithCapacity[T](256), ringbuffer.WithOverride[T]())
 	}
 	el := &reactor[T]{
 		eventQ:   q,
-		controlQ: ringbuffer.New[controlEvent[T]](32),
+		controlQ: ringbuffer.New[controlEvent[T]](ringbuffer.WithCapacity[controlEvent[T]](32)),
 		done:     atomic.Pointer[context.CancelFunc]{},
 	}
 

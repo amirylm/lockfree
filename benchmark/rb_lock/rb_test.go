@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRingBufferLock_Sanity_Int(t *testing.T) {
-	utils.SanityTest(t, 32, New[int], func(i int) int {
+	factory := func() core.Queue[int] { return New[int](WithCapacity[int](32)) }
+	utils.SanityTest(t, 32, factory, func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
 		return v == i+1
@@ -26,7 +28,8 @@ func TestRingBufferLock_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 2, 2
 
-	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
+	factory := func() core.Queue[([]byte)] { return New[([]byte)](WithCapacity[([]byte)](128)) }
+	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, factory, func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
 		return len(v) > 1 && v[0] == 1

@@ -3,6 +3,7 @@ package stack
 import (
 	"sync/atomic"
 
+	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 )
 
@@ -22,12 +23,13 @@ type LLStack[Value any] struct {
 }
 
 // New creates a new lock-free stack.
-func New[Value any](capacity int) core.Stack[Value] {
-	return &LLStack[Value]{
-		head:     atomic.Pointer[element[Value]]{},
-		size:     atomic.Int32{},
-		capacity: int32(capacity),
+func New[Value any](opts ...options.Option[LLStack[Value]]) core.Stack[Value] {
+	s := &LLStack[Value]{
+		head: atomic.Pointer[element[Value]]{},
+		size: atomic.Int32{},
 	}
+	_ = options.Apply(s, opts...)
+	return s
 }
 
 // Push adds a new value to the stack.

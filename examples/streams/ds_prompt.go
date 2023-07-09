@@ -16,9 +16,9 @@ func PromptDS(args []string) (core.Queue[string], string) {
 	var c core.Queue[string]
 	switch ds {
 	case "ringbuffer":
-		c = ringbuffer.New[string](128)
+		c = ringbuffer.New[string](ringbuffer.WithCapacity[string](128))
 	case "queue":
-		c = queue.New[string](100000)
+		c = queue.New[string](queue.WithCapacity[string](100000))
 	case "stack":
 		c = stack.NewQueueAdapter[string](128)
 	default:

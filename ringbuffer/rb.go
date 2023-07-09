@@ -3,23 +3,30 @@ package ringbuffer
 import (
 	"sync/atomic"
 
+	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 )
 
-func NewWithOverride[Value any](c int) core.Queue[Value] {
-	rb := New[Value](c).(*RingBuffer[Value])
-	rb.override = true
+func WithCapacity[Value any](c int) options.Option[RingBuffer[Value]] {
+	return func(rb *RingBuffer[Value]) {
+		rb.capacity = uint32(c)
+	}
+}
 
-	return rb
+func WithOverride[Value any]() options.Option[RingBuffer[Value]] {
+	return func(rb *RingBuffer[Value]) {
+		rb.override = true
+	}
 }
 
 // New creates a new RingBuffer
-func New[Value any](c int) core.Queue[Value] {
+func New[Value any](opts ...options.Option[RingBuffer[Value]]) core.Queue[Value] {
 	rb := &RingBuffer[Value]{
-		elements: make([]*atomic.Pointer[Value], c),
-		capacity: uint32(c),
-		state:    atomic.Uint64{},
+		state: atomic.Uint64{},
 	}
+
+	_ = options.Apply(rb, opts...)
+	rb.elements = make([]*atomic.Pointer[Value], rb.capacity)
 
 	rb.state.Store(new(ringBufferState).Uint64())
 
