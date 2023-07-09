@@ -1,17 +1,28 @@
 package gochan
 
-import "github.com/amirylm/lockfree/core"
+import (
+	"github.com/amirylm/go-options"
+	"github.com/amirylm/lockfree/core"
+)
 
 type GoChanQ[Value any] struct {
 	cn       chan Value
 	capacity int
 }
 
-func New[Value any](capacity int) core.Queue[Value] {
-	return &GoChanQ[Value]{
-		cn:       make(chan Value, capacity),
-		capacity: capacity,
+func WithCapacity[Value any](c int) options.Option[GoChanQ[Value]] {
+	return func(q *GoChanQ[Value]) {
+		q.capacity = c
 	}
+}
+
+func New[Value any](opts ...options.Option[GoChanQ[Value]]) core.Queue[Value] {
+	gc := &GoChanQ[Value]{}
+
+	_ = options.Apply(gc, opts...)
+	gc.cn = make(chan Value, gc.capacity)
+
+	return gc
 }
 
 func (q *GoChanQ[Value]) Enqueue(v Value) bool {

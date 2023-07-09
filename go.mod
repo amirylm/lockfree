@@ -2,7 +2,10 @@ module github.com/amirylm/lockfree
 
 go 1.20
 
-require github.com/stretchr/testify v1.8.3
+require (
+	github.com/amirylm/go-options v0.0.1
+	github.com/stretchr/testify v1.8.3
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

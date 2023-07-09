@@ -16,10 +16,10 @@ type ElementGenerator[Value any] func(i int) Value
 type ElementAssertor[Value any] func(i int, v Value) bool
 
 // Factory is a factory function for creating instances of ds
-type Factory[Value any] func(capacity int) core.Queue[Value]
+type Factory[Value any] func() core.Queue[Value]
 
 func SanityTest[Value any](t *testing.T, n int, factory Factory[Value], gen ElementGenerator[Value], assertor ElementAssertor[Value]) {
-	ds := factory(n)
+	ds := factory()
 	require.True(t, ds.Empty(), "should be empty")
 	for i := 0; i < n; i++ {
 		require.True(t, ds.Enqueue(gen(i)), "failed to push element in index %d", i)
@@ -48,7 +48,7 @@ func ConcurrencyTest[Value any](t *testing.T, pctx context.Context, cap, n, read
 
 	var reads, writes int64
 
-	ds := factory(cap)
+	ds := factory()
 
 	var wg sync.WaitGroup
 

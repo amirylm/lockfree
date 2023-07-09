@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRingBuffer_Sanity_Int(t *testing.T) {
-	utils.SanityTest(t, 32, New[int], func(i int) int {
+	factory := func() core.Queue[int] { return New(WithCapacity[int](32)) }
+	utils.SanityTest(t, 32, factory, func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
 		return v == i+1
@@ -26,7 +28,8 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 5, 5
 
-	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, New[[]byte], func(i int) []byte {
+	factory := func() core.Queue[([]byte)] { return New(WithCapacity[([]byte)](32)) }
+	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, factory, func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
 		return len(v) > 1 && v[0] == 1
@@ -39,7 +42,7 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 }
 
 func TestRingBuffer_Overflow(t *testing.T) {
-	rb := NewWithOverride[int](128)
+	rb := New(WithCapacity[int](128), WithOverride[int]())
 	overflow := 5
 	n := 128
 	require.True(t, rb.Empty(), "should be empty")

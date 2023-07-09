@@ -3,6 +3,7 @@ package queue
 import (
 	"sync/atomic"
 
+	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 )
 
@@ -20,9 +21,18 @@ type Queue[Value any] struct {
 	capacity int32
 }
 
-func New[Value any](capacity int) core.Queue[Value] {
+func WithCapacity[Value any](c int) options.Option[Queue[Value]] {
+	return func(q *Queue[Value]) {
+		q.capacity = int32(c)
+	}
+}
+
+func New[Value any](opts ...options.Option[Queue[Value]]) core.Queue[Value] {
 	var e = element[Value]{}
-	q := &Queue[Value]{capacity: int32(capacity)}
+	q := &Queue[Value]{
+		size: atomic.Int32{},
+	}
+	_ = options.Apply(q, opts...)
 	q.head.Store(&e)
 	q.tail.Store(&e)
 	return q

@@ -3,15 +3,23 @@ package rb_lock
 import (
 	"sync"
 
+	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 )
 
-func New[Value any](c int) core.Queue[Value] {
-	rb := &RingBufferLock[Value]{
-		lock:     &sync.RWMutex{},
-		data:     make([]Value, c),
-		capacity: uint32(c),
+func WithCapacity[Value any](c int) options.Option[RingBufferLock[Value]] {
+	return func(rb *RingBufferLock[Value]) {
+		rb.capacity = uint32(c)
 	}
+}
+
+func New[Value any](opts ...options.Option[RingBufferLock[Value]]) core.Queue[Value] {
+	rb := &RingBufferLock[Value]{
+		lock: &sync.RWMutex{},
+	}
+
+	options.Apply(rb, opts...)
+	rb.data = make([]Value, rb.capacity)
 
 	return rb
 }
