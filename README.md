@@ -9,6 +9,7 @@ https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/6874
 ![Go version](https://img.shields.io/badge/go-1.20-blue.svg)
 ![Github Actions](https://github.com/amirylm/lockfree/actions/workflows/lint.yml/badge.svg?branch=main)
 ![Github Actions](https://github.com/amirylm/lockfree/actions/workflows/test.yml/badge.svg?branch=main)
+[![Go Report Card](https://goreportcard.com/badge/github.com/amirylm/lockfree)](https://goreportcard.com/report/github.com/amirylm/lockfree)
 
 ## Overview
 
