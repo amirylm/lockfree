@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync/atomic"
 
+	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/ringbuffer"
 )
@@ -48,6 +49,18 @@ type controlEvent[T any] struct {
 	svc     service[T]
 }
 
+func WithEventQueue[T any](q core.Queue[T]) options.Option[reactor[T]] {
+	return func(r *reactor[T]) {
+		r.eventQ = q
+	}
+}
+
+func WithControlQueue[T any](q core.Queue[controlEvent[T]]) options.Option[reactor[T]] {
+	return func(r *reactor[T]) {
+		r.controlQ = q
+	}
+}
+
 type reactor[T any] struct {
 	eventQ   core.Queue[T]
 	controlQ core.Queue[controlEvent[T]]
@@ -55,15 +68,16 @@ type reactor[T any] struct {
 	done atomic.Pointer[context.CancelFunc]
 }
 
-func New[T any](q core.Queue[T]) *reactor[T] {
-	if q == nil {
-		q = ringbuffer.New[T](ringbuffer.WithCapacity[T](256), ringbuffer.WithOverride[T]())
+func New[T any](opts ...options.Option[reactor[T]]) *reactor[T] {
+	el := options.Apply(nil, opts...)
+
+	if el.eventQ == nil {
+		el.eventQ = ringbuffer.New(ringbuffer.WithCapacity[T](256), ringbuffer.WithOverride[T]())
 	}
-	el := &reactor[T]{
-		eventQ:   q,
-		controlQ: ringbuffer.New[controlEvent[T]](ringbuffer.WithCapacity[controlEvent[T]](32)),
-		done:     atomic.Pointer[context.CancelFunc]{},
+	if el.controlQ == nil {
+		el.controlQ = ringbuffer.New(ringbuffer.WithCapacity[controlEvent[T]](32))
 	}
+	el.done = atomic.Pointer[context.CancelFunc]{}
 
 	return el
 }

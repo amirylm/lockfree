@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/amirylm/lockfree/ringbuffer"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReactor(t *testing.T) {
-	r := New[[]byte](nil)
+	r := New[[]byte]()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
@@ -78,7 +79,10 @@ func TestReactor(t *testing.T) {
 }
 
 func TestReactor_handleControl(t *testing.T) {
-	r := New[[]byte](nil)
+	r := New(
+		WithEventQueue(ringbuffer.New(ringbuffer.WithCapacity[[]byte](32))),
+		WithControlQueue(ringbuffer.New(ringbuffer.WithCapacity[controlEvent[[]byte]](32))),
+	)
 
 	tests := []struct {
 		name     string
