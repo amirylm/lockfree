@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"io"
 	"runtime"
 	"sync/atomic"
 
@@ -20,6 +21,7 @@ type Selector[T any] func(T) bool
 // Using lock-free queues for events and control messages, and atomic pointers to manage states and workers.
 // This component can be used instead of go channels in cases of multiple parallel readers
 type Demultiplexer[T any] interface {
+	io.Closer
 	// Start starts the event loop
 	Start(context.Context) error
 	// Enqueue adds a new event to the event queue
@@ -35,7 +37,7 @@ type service[T any] struct {
 	id       string
 	handlers []DemuxHandler[T]
 	selector Selector[T]
-	workers  atomic.Int32
+	workers  *atomic.Int32
 }
 
 type control int32
@@ -109,12 +111,13 @@ func (r *demultiplexer[T]) Start(pctx context.Context) error {
 	for ctx.Err() == nil {
 		c, ok := r.controlQ.Dequeue()
 		if ok {
-			services = r.handleControl(services, c)
+			services = r.handleControl(services, &c)
 			continue
 		}
 		e, ok := r.eventQ.Dequeue()
 		if ok {
-			go r.handleEvent(r.clone(e), services...)
+			eventServices := r.selectServices(e, services...)
+			go r.handleEvent(r.clone(e), eventServices...)
 			continue
 		}
 		runtime.Gosched()
@@ -129,7 +132,7 @@ func (r *demultiplexer[T]) Register(serviceID string, selector Selector[T], work
 	if len(handlers) == 0 {
 		return
 	}
-	aworkers := atomic.Int32{}
+	aworkers := &atomic.Int32{}
 	aworkers.Store(int32(workers))
 	r.controlQ.Enqueue(controlEvent[T]{
 		control: registerService,
@@ -155,26 +158,34 @@ func (r *demultiplexer[T]) Enqueue(t T) {
 	r.eventQ.Enqueue(t)
 }
 
+func (r *demultiplexer[T]) selectServices(t T, services ...service[T]) []service[T] {
+	var selected []service[T]
+	for _, svc := range services {
+		if svc.selector(t) {
+			selected = append(selected, svc)
+		}
+	}
+	return selected
+}
+
 // handleEvent handles an event by calling the appropriate handlers.
 // Runs in an event thread, and might spawn worker threads.
 func (r *demultiplexer[T]) handleEvent(t T, services ...service[T]) {
 	for _, svc := range services {
-		if svc.selector(t) {
-			if svc.workers.Load() <= 0 {
-				// if there are no available workers, run on the event thread
-				r.invokeHandlers(r.clone(t), svc.handlers...)
-				continue
-			}
-			svc.workers.Add(-1)
-			go func(t T, workers atomic.Int32, handlers ...DemuxHandler[T]) {
-				defer workers.Add(1)
-				r.invokeHandlers(t, handlers...)
-			}(r.clone(t), svc.workers, svc.handlers...)
+		if svc.workers.Load() <= 0 {
+			// if there are no available workers, run on the event thread
+			r.invokeHandlers(r.clone(t), svc.handlers...)
+			continue
 		}
+		svc.workers.Add(-1)
+		go func(t T, workers *atomic.Int32, handlers ...DemuxHandler[T]) {
+			defer workers.Add(1)
+			r.invokeHandlers(t, handlers...)
+		}(r.clone(t), svc.workers, svc.handlers...)
 	}
 }
 
-func (r *demultiplexer[T]) handleControl(services []service[T], ce controlEvent[T]) []service[T] {
+func (r *demultiplexer[T]) handleControl(services []service[T], ce *controlEvent[T]) []service[T] {
 	switch ce.control {
 	case registerService:
 		for _, svc := range services {
@@ -182,7 +193,12 @@ func (r *demultiplexer[T]) handleControl(services []service[T], ce controlEvent[
 				return services
 			}
 		}
-		return append(services, ce.svc)
+		return append(services, service[T]{
+			id:       ce.svc.id,
+			handlers: ce.svc.handlers,
+			selector: ce.svc.selector,
+			workers:  ce.svc.workers,
+		})
 	case unregisterService:
 		updated := make([]service[T], len(services))
 		i := 0

@@ -179,7 +179,7 @@ func TestDemux_handleControl(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			services := tc.existing
 			for _, e := range tc.events {
-				services = r.handleControl(services, e)
+				services = r.handleControl(services, &e)
 			}
 			require.Equal(t, tc.want, services)
 		})

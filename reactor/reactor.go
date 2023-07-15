@@ -3,8 +3,10 @@ package reactor
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -17,7 +19,22 @@ type Encoder[T any] interface {
 	ID(T) []byte
 }
 
+type defaultEncoder[T any] struct {
+}
+
+func (enc *defaultEncoder[T]) Clone(t T) T {
+	return t
+}
+
+func (enc *defaultEncoder[T]) ID(t T) []byte {
+	h := md5.Sum([]byte(fmt.Sprintf("%+v", t)))
+	return h[:]
+}
+
 type Reactor[T any] interface {
+	io.Closer
+	Start(pctx context.Context) error
+
 	Enqueue(events ...T)
 	EnqueueWait(context.Context, T) (T, error)
 
@@ -66,6 +83,15 @@ func New[T any](opts ...options.Option[reactor[T]]) Reactor[T] {
 	if r.callbacks == nil {
 		r.callbacks = NewDemux[event[T]]()
 	}
+	if r.encoder == nil {
+		r.encoder = &defaultEncoder[T]{}
+	}
+	if r.tick == 0 {
+		r.tick = time.Second / 2
+	}
+	if r.timeout == 0 {
+		r.timeout = time.Second * 10
+	}
 
 	return r
 }
@@ -75,11 +101,33 @@ type reactor[T any] struct {
 	tick, timeout     time.Duration
 
 	encoder Encoder[T]
+
+	done atomic.Pointer[context.CancelFunc]
 }
 
 func (r *reactor[T]) genID(T) ID {
 	return []byte(fmt.Sprintf("%04d-%08d-%04d",
 		rand.Intn(9999), rand.Intn(99999999), rand.Intn(9999)))
+}
+
+func (r *reactor[T]) Start(pctx context.Context) error {
+	ctx, cancel := context.WithCancel(pctx)
+	defer cancel()
+	r.done.Store(&cancel)
+	go func() {
+		_ = r.callbacks.Start(ctx)
+	}()
+	return r.events.Start(ctx)
+}
+
+func (r *reactor[T]) Close() error {
+	cancel := r.done.Load()
+	if cancel == nil {
+		return nil
+	}
+	(*cancel)()
+	r.done.Store(nil)
+	return nil
 }
 
 func (r *reactor[T]) Enqueue(events ...T) {

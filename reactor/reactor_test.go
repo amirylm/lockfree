@@ -17,7 +17,15 @@ type mockEvent struct {
 }
 
 func TestReactor_Sanity(t *testing.T) {
+	pctx, pcancel := context.WithCancel(context.Background())
+	defer pcancel()
 	r := New[mockEvent]()
+	go func() {
+		_ = r.Start(pctx)
+	}()
+	defer func() {
+		_ = r.Close()
+	}()
 
 	r.AddHandler("test-1", func(me mockEvent) bool {
 		return len(me.name) > 0 && me.name != "errored"
@@ -50,6 +58,8 @@ func TestReactor_Sanity(t *testing.T) {
 	defer r.RemoveCallback("test-all")
 
 	n := 4
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 	go func(n int) {
 		for n > 0 {
 			r.Enqueue(mockEvent{
@@ -57,9 +67,13 @@ func TestReactor_Sanity(t *testing.T) {
 			})
 			n--
 		}
+		res, err := r.EnqueueWait(ctx, mockEvent{
+			name: fmt.Sprintf("test-event-%d", n),
+		})
+		require.NoError(t, err)
+		require.Greater(t, res.count, 0)
 	}(n * 2)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
+
 	for callbackCounter.Load() < int32(n) && ctx.Err() == nil {
 		time.Sleep(time.Millisecond * 10)
 	}
