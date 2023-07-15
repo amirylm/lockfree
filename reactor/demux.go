@@ -208,6 +208,9 @@ func (r *demultiplexer[T]) handleControl(services []service[T], ce *controlEvent
 				i++
 			}
 		}
+		if i == 0 {
+			return []service[T]{}
+		}
 		return updated[:i]
 	default:
 		return services

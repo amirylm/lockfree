@@ -41,8 +41,8 @@ func TestReactor_Sanity(t *testing.T) {
 	r.AddHandler("test-err", func(me mockEvent) bool {
 		return me.name == "errored"
 	}, 1, func(me mockEvent, callback func(mockEvent, error)) {
+		me.count++
 		go func(me mockEvent) {
-			me.count++
 			<-time.After(time.Millisecond * 20)
 			callback(me, errors.New("test-error"))
 		}(me)
@@ -51,8 +51,9 @@ func TestReactor_Sanity(t *testing.T) {
 
 	callbackCounter := atomic.Int32{}
 	r.AddCallback("test-all", func(me mockEvent) bool {
-		return true
+		return len(me.name) > 0
 	}, 1, func(me mockEvent) {
+		require.Greater(t, me.count, int32(0))
 		callbackCounter.Add(1)
 	})
 	defer r.RemoveCallback("test-all")
@@ -61,6 +62,7 @@ func TestReactor_Sanity(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	go func(n int) {
+		n-- // because we are doing another enqueue after this loop
 		for n > 0 {
 			r.Enqueue(mockEvent{
 				name: fmt.Sprintf("test-event-%d", n),
@@ -71,11 +73,12 @@ func TestReactor_Sanity(t *testing.T) {
 			name: fmt.Sprintf("test-event-%d", n),
 		})
 		require.NoError(t, err)
-		require.Greater(t, res.count, 0)
-	}(n * 2)
+		require.Greater(t, res.count, int32(0))
+	}(n)
 
 	for callbackCounter.Load() < int32(n) && ctx.Err() == nil {
 		time.Sleep(time.Millisecond * 10)
 	}
 	require.NoError(t, ctx.Err())
+	require.NoError(t, r.Close())
 }
