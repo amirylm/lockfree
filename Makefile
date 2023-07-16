@@ -17,7 +17,7 @@ test:
 	@go test -v -race -timeout=10m ${TEST_PKG} 
 
 test-cov:
-	@go test -v -race -timeout=10m -coverprofile cover.out ./stack ./ringbuffer ./queue ./reactor
+	@go test -v -race -timeout=10m -coverprofile cover.out ./stack ./ringbuffer ./queue ./reactor ./pool
 
 test-open-cov:
 	@make test-cov
