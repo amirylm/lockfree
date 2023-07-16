@@ -14,6 +14,7 @@ import (
 func TestPoolWrapper(t *testing.T) {
 	sha256Hash := PoolWrapper(sha256.New, func(h hash.Hash, data []byte) [32]byte {
 		var b [32]byte
+		h.Reset()
 		// #nosec G104
 		_, err := h.Write(data)
 		if err != nil {
@@ -90,6 +91,7 @@ func TestPoolWrapperWithErr(t *testing.T) {
 			"no error",
 			func(h hash.Hash, data []byte) ([32]byte, error) {
 				var b [32]byte
+				h.Reset()
 				// #nosec G104
 				_, err := h.Write(data)
 				if err != nil {
