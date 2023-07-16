@@ -13,31 +13,38 @@ import (
 )
 
 func TestDemux(t *testing.T) {
-	r := NewDemux[[]byte]().(*demultiplexer[[]byte])
+	d := NewDemux(WithCloneFn(func(b []byte) []byte {
+		if len(b) == 0 {
+			return b
+		}
+		cp := make([]byte, len(b))
+		copy(b, cp)
+		return cp
+	})).(*demultiplexer[[]byte])
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	go func() {
 		t.Log("starting reactor")
-		_ = r.Start(ctx)
+		_ = d.Start(ctx)
 	}()
 
 	t.Run("sanity", func(t *testing.T) {
 		count, f := newCounter[[]byte]()
 		expectedCount := int32(3)
-		r.Register("test", func(v []byte) bool {
+		d.Register("test", func(v []byte) bool {
 			return bytes.Equal(v, []byte("hello"))
 		}, 0, f, f, f)
-		defer r.Unregister("test")
+		defer d.Unregister("test")
 
 		// double register should not work
-		r.Register("test", func(v []byte) bool {
+		d.Register("test", func(v []byte) bool {
 			return bytes.Equal(v, []byte("hello"))
 		}, 0, f)
 
-		go r.Enqueue([]byte("hello"))
-		go r.Enqueue([]byte("world"))
-		go r.Enqueue([]byte("hello-world"))
+		go d.Enqueue([]byte("hello"))
+		go d.Enqueue([]byte("world"))
+		go d.Enqueue([]byte("hello-world"))
 
 		for count.Load() < expectedCount && ctx.Err() == nil {
 			runtime.Gosched()
@@ -48,21 +55,21 @@ func TestDemux(t *testing.T) {
 	t.Run("workers", func(t *testing.T) {
 		count, f := newCounter[[]byte]()
 		expectedCount := int32(8 * 2)
-		r.Register("test-workers", func(v []byte) bool {
+		d.Register("test-workers", func(v []byte) bool {
 			return bytes.Equal(v, []byte("hello")) || bytes.Equal(v, []byte("world"))
 		}, 2, f, f, f, f, f, f, f, f)
-		defer r.Unregister("test-workers")
+		defer d.Unregister("test-workers")
 
 		count2, f2 := newCounter[[]byte]()
 		expectedCount2 := int32(4)
-		r.Register("test-workers-2", func(v []byte) bool {
+		d.Register("test-workers-2", func(v []byte) bool {
 			return bytes.Equal(v, []byte("hello"))
 		}, 2, f2, f2, f2, f2)
-		defer r.Unregister("test-workers-2")
+		defer d.Unregister("test-workers-2")
 
-		go r.Enqueue([]byte("hello"))
-		go r.Enqueue([]byte("world"))
-		go r.Enqueue([]byte("hello-world"))
+		go d.Enqueue([]byte("hello"))
+		go d.Enqueue([]byte("world"))
+		go d.Enqueue([]byte("hello-world"))
 
 		for count.Load() < expectedCount && ctx.Err() == nil {
 			runtime.Gosched()
@@ -71,10 +78,17 @@ func TestDemux(t *testing.T) {
 		require.Equal(t, expectedCount2, count2.Load())
 	})
 
+	t.Run("register no handlers", func(t *testing.T) {
+		d.Register("test-workers-2", func(v []byte) bool {
+			return true
+		}, 0)
+		d.Enqueue([]byte("hello"))
+	})
+
 	t.Run("close", func(t *testing.T) {
-		require.NoError(t, r.Close())
-		require.NoError(t, r.Close())
-		r.Enqueue([]byte("hello"))
+		require.NoError(t, d.Close())
+		require.NoError(t, d.Close())
+		d.Enqueue([]byte("hello"))
 	})
 }
 

@@ -3,7 +3,6 @@ package reactor
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -13,23 +12,6 @@ import (
 
 	"github.com/amirylm/go-options"
 )
-
-type Encoder[T any] interface {
-	Clone(T) T
-	ID(T) []byte
-}
-
-type defaultEncoder[T any] struct {
-}
-
-func (enc *defaultEncoder[T]) Clone(t T) T {
-	return t
-}
-
-func (enc *defaultEncoder[T]) ID(t T) []byte {
-	h := md5.Sum([]byte(fmt.Sprintf("%+v", t)))
-	return h[:]
-}
 
 type Reactor[T any] interface {
 	io.Closer
@@ -61,12 +43,6 @@ func WithCallbacksDemux[T any](d Demultiplexer[event[T]]) options.Option[reactor
 	}
 }
 
-func WithEncoder[T any](encoder Encoder[T]) options.Option[reactor[T]] {
-	return func(r *reactor[T]) {
-		r.encoder = encoder
-	}
-}
-
 func WithTimes[T any](tick, timeout time.Duration) options.Option[reactor[T]] {
 	return func(r *reactor[T]) {
 		r.tick = tick
@@ -83,9 +59,6 @@ func New[T any](opts ...options.Option[reactor[T]]) Reactor[T] {
 	if r.callbacks == nil {
 		r.callbacks = NewDemux[event[T]]()
 	}
-	if r.encoder == nil {
-		r.encoder = &defaultEncoder[T]{}
-	}
 	if r.tick == 0 {
 		r.tick = time.Second / 2
 	}
@@ -99,8 +72,6 @@ func New[T any](opts ...options.Option[reactor[T]]) Reactor[T] {
 type reactor[T any] struct {
 	events, callbacks Demultiplexer[event[T]]
 	tick, timeout     time.Duration
-
-	encoder Encoder[T]
 
 	done atomic.Pointer[context.CancelFunc]
 }
