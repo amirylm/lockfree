@@ -3,8 +3,10 @@ package queue
 import (
 	"context"
 	"math/big"
+	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/utils"
@@ -48,6 +50,11 @@ func TestLinkedListQueue_Range(t *testing.T) {
 		require.True(t, q.Enqueue(i+1))
 	}
 
+	// empty queue with head artificially set to nil for testing purposes
+	eq := New[int](WithCapacity[int](0)).(*Queue[int])
+	head := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&eq.head)))
+	atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&eq.head)), head, nil)
+
 	tests := []struct {
 		name     string
 		queue    *Queue[int]
@@ -77,6 +84,14 @@ func TestLinkedListQueue_Range(t *testing.T) {
 				return true
 			},
 			want: 1,
+		},
+		{
+			name:  "empty and head is nil",
+			queue: eq,
+			iterator: func(val int) bool {
+				return true
+			},
+			want: 0,
 		},
 	}
 
