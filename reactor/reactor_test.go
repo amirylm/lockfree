@@ -18,8 +18,8 @@ type mockEvent struct {
 
 func TestReactor_NewWithArgs(t *testing.T) {
 	r := New(
-		WithCallbacksDemux(NewDemux[event[mockEvent]]()),
-		WithEventsDemux(NewDemux[event[mockEvent]]()),
+		WithCallbacksDemux(NewDemux[Event[mockEvent]]()),
+		WithEventsDemux(NewDemux[Event[mockEvent]]()),
 		WithTimes[mockEvent](time.Second, time.Minute),
 	)
 
