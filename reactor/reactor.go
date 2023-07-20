@@ -31,13 +31,13 @@ type Reactor[T any] interface {
 // The callback function is expected to be called once the event was processed
 type EventHandler[T any] func(T, func(T, error))
 
-func WithEventsDemux[T any](d Demultiplexer[event[T]]) options.Option[reactor[T]] {
+func WithEventsDemux[T any](d Demultiplexer[Event[T]]) options.Option[reactor[T]] {
 	return func(r *reactor[T]) {
 		r.events = d
 	}
 }
 
-func WithCallbacksDemux[T any](d Demultiplexer[event[T]]) options.Option[reactor[T]] {
+func WithCallbacksDemux[T any](d Demultiplexer[Event[T]]) options.Option[reactor[T]] {
 	return func(r *reactor[T]) {
 		r.callbacks = d
 	}
@@ -54,10 +54,10 @@ func New[T any](opts ...options.Option[reactor[T]]) Reactor[T] {
 	r := options.Apply(nil, opts...)
 
 	if r.events == nil {
-		r.events = NewDemux[event[T]]()
+		r.events = NewDemux[Event[T]]()
 	}
 	if r.callbacks == nil {
-		r.callbacks = NewDemux[event[T]]()
+		r.callbacks = NewDemux[Event[T]]()
 	}
 	if r.tick == 0 {
 		r.tick = time.Second / 2
@@ -70,7 +70,7 @@ func New[T any](opts ...options.Option[reactor[T]]) Reactor[T] {
 }
 
 type reactor[T any] struct {
-	events, callbacks Demultiplexer[event[T]]
+	events, callbacks Demultiplexer[Event[T]]
 	tick, timeout     time.Duration
 
 	done atomic.Pointer[context.CancelFunc]
@@ -103,10 +103,10 @@ func (r *reactor[T]) Close() error {
 
 func (r *reactor[T]) Enqueue(events ...T) {
 	for _, data := range events {
-		r.events.Enqueue(event[T]{
-			id:    r.genID(data),
-			nonce: 0,
-			data:  data,
+		r.events.Enqueue(Event[T]{
+			ID:    r.genID(data),
+			Nonce: 0,
+			Data:  data,
 		})
 	}
 }
@@ -115,22 +115,22 @@ func (r *reactor[T]) EnqueueWait(pctx context.Context, data T) (T, error) {
 	ctx, cancel := context.WithTimeout(pctx, r.timeout)
 	defer cancel()
 
-	resultp := atomic.Pointer[event[T]]{}
+	resultp := atomic.Pointer[Event[T]]{}
 	nonce := int64(1)
 	id := r.genID(data)
 
 	cid := fmt.Sprintf("%x:%d", id, nonce)
-	r.callbacks.Register(cid, func(e event[T]) bool {
-		return bytes.Equal(e.id, id) && e.nonce == nonce
-	}, 0, func(e event[T]) {
+	r.callbacks.Register(cid, func(e Event[T]) bool {
+		return bytes.Equal(e.ID, id) && e.Nonce == nonce
+	}, 0, func(e Event[T]) {
 		resultp.Store(&e)
 	})
 	defer r.callbacks.Unregister(cid)
 
-	r.events.Enqueue(event[T]{
-		id:    id,
-		nonce: nonce - 1,
-		data:  data,
+	r.events.Enqueue(Event[T]{
+		ID:    id,
+		Nonce: nonce - 1,
+		Data:  data,
 	})
 
 	result := resultp.Load()
@@ -140,27 +140,27 @@ func (r *reactor[T]) EnqueueWait(pctx context.Context, data T) (T, error) {
 	}
 
 	if result != nil {
-		return result.data, result.err
+		return result.Data, result.Err
 	}
 	var res T
 	return res, ctx.Err()
 }
 
 func (r *reactor[T]) AddHandler(id string, selector Selector[T], workers int, handler EventHandler[T]) {
-	r.events.Register(id, func(e event[T]) bool {
-		return selector(e.data)
-	}, workers, func(e event[T]) {
-		n := e.nonce
-		eid := e.id
+	r.events.Register(id, func(e Event[T]) bool {
+		return selector(e.Data)
+	}, workers, func(e Event[T]) {
+		n := e.Nonce
+		eid := e.ID
 		callbacks := r.callbacks
-		handler(e.data, func(data T, err error) {
-			resp := event[T]{
-				id:    eid,
-				nonce: n + 1,
-				data:  data,
+		handler(e.Data, func(data T, err error) {
+			resp := Event[T]{
+				ID:    eid,
+				Nonce: n + 1,
+				Data:  data,
 			}
 			if err != nil {
-				resp.err = err
+				resp.Err = err
 			}
 			callbacks.Enqueue(resp)
 		})
@@ -172,10 +172,10 @@ func (r *reactor[T]) RemoveHandler(id string) {
 }
 
 func (r *reactor[T]) AddCallback(id string, selector Selector[T], workers int, handler DemuxHandler[T]) {
-	r.callbacks.Register(id, func(e event[T]) bool {
-		return selector(e.data)
-	}, workers, func(e event[T]) {
-		handler(e.data)
+	r.callbacks.Register(id, func(e Event[T]) bool {
+		return selector(e.Data)
+	}, workers, func(e Event[T]) {
+		handler(e.Data)
 	})
 }
 
@@ -198,9 +198,9 @@ func IDFromString(idstr string) ID {
 	return id
 }
 
-type event[T any] struct {
-	id    ID
-	nonce int64
-	data  T
-	err   error
+type Event[T any] struct {
+	ID    ID
+	Nonce int64
+	Data  T
+	Err   error
 }
