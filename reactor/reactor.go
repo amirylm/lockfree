@@ -200,7 +200,11 @@ func IDFromString(idstr string) ID {
 
 type Event[T any] struct {
 	ID    ID
-	Nonce int64
+	nonce int64
 	Data  T
 	Err   error
+}
+
+func (e Event[T]) Nonce() int64 {
+	return e.nonce
 }
