@@ -105,7 +105,7 @@ func (r *reactor[T]) Enqueue(events ...T) {
 	for _, data := range events {
 		r.events.Enqueue(Event[T]{
 			ID:    r.genID(data),
-			Nonce: 0,
+			nonce: 0,
 			Data:  data,
 		})
 	}
@@ -121,7 +121,7 @@ func (r *reactor[T]) EnqueueWait(pctx context.Context, data T) (T, error) {
 
 	cid := fmt.Sprintf("%x:%d", id, nonce)
 	r.callbacks.Register(cid, func(e Event[T]) bool {
-		return bytes.Equal(e.ID, id) && e.Nonce == nonce
+		return bytes.Equal(e.ID, id) && e.nonce == nonce
 	}, 0, func(e Event[T]) {
 		resultp.Store(&e)
 	})
@@ -129,7 +129,7 @@ func (r *reactor[T]) EnqueueWait(pctx context.Context, data T) (T, error) {
 
 	r.events.Enqueue(Event[T]{
 		ID:    id,
-		Nonce: nonce - 1,
+		nonce: nonce - 1,
 		Data:  data,
 	})
 
@@ -150,13 +150,13 @@ func (r *reactor[T]) AddHandler(id string, selector Selector[T], workers int, ha
 	r.events.Register(id, func(e Event[T]) bool {
 		return selector(e.Data)
 	}, workers, func(e Event[T]) {
-		n := e.Nonce
+		n := e.nonce
 		eid := e.ID
 		callbacks := r.callbacks
 		handler(e.Data, func(data T, err error) {
 			resp := Event[T]{
 				ID:    eid,
-				Nonce: n + 1,
+				nonce: n + 1,
 				Data:  data,
 			}
 			if err != nil {
