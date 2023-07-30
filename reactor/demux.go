@@ -107,7 +107,7 @@ func (r *demultiplexer[T]) Start(pctx context.Context) error {
 	ctx, cancel := context.WithCancel(pctx)
 	r.done.Store(&cancel)
 
-	var services []service[T]
+	services := make([]service[T], 0)
 	for ctx.Err() == nil {
 		c, ok := r.controlQ.Dequeue()
 		if ok {
@@ -161,7 +161,7 @@ func (r *demultiplexer[T]) Enqueue(t T) {
 func (r *demultiplexer[T]) selectServices(t T, services ...service[T]) []service[T] {
 	var selected []service[T]
 	for _, svc := range services {
-		if svc.selector(t) {
+		if svc.selector != nil && svc.selector(t) {
 			selected = append(selected, svc)
 		}
 	}
