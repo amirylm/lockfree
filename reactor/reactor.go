@@ -13,6 +13,36 @@ import (
 	"github.com/amirylm/go-options"
 )
 
+type ReactiveService[T, C any] interface {
+	Select(Event[T]) bool
+	Handle(Event[T], func(C, error))
+}
+
+type reactiveServiceAdapter[E, C any] struct {
+	svc       ReactiveService[E, C]
+	callbacks Demultiplexer[Event[C]]
+}
+
+func (adapter *reactiveServiceAdapter[T, C]) Select(e Event[T]) bool {
+	return adapter.svc.Select(e)
+}
+
+func (adapter *reactiveServiceAdapter[T, C]) Handle(e Event[T]) {
+	n := e.nonce
+	eid := e.ID
+	adapter.svc.Handle(e, func(data C, err error) {
+		resp := Event[C]{
+			ID:    eid,
+			nonce: n + 1,
+			Data:  data,
+		}
+		if err != nil {
+			resp.Err = err
+		}
+		adapter.callbacks.Enqueue(resp)
+	})
+}
+
 type Reactor[E, C any] interface {
 	io.Closer
 	Start(pctx context.Context) error
@@ -20,10 +50,10 @@ type Reactor[E, C any] interface {
 	Enqueue(events ...E)
 	EnqueueWait(context.Context, E) (C, error)
 
-	AddHandler(string, Selector[E], int, EventHandler[E, C])
+	AddHandler(string, ReactiveService[E, C], int)
 	RemoveHandler(string)
 
-	AddCallback(string, Selector[C], int, DemuxHandler[C])
+	AddCallback(string, Service[Event[C]], int)
 	RemoveCallback(string)
 }
 
@@ -116,16 +146,17 @@ func (r *reactor[T, C]) EnqueueWait(pctx context.Context, data T) (C, error) {
 	ctx, cancel := context.WithTimeout(pctx, r.timeout)
 	defer cancel()
 
-	resultp := atomic.Pointer[Event[C]]{}
+	resultp := &atomic.Pointer[Event[C]]{}
 	nonce := int64(1)
 	id := r.genID(data)
 
 	cid := fmt.Sprintf("%x:%d", id, nonce)
-	r.callbacks.Register(cid, func(e Event[C]) bool {
-		return bytes.Equal(e.ID, id) && e.nonce == nonce
-	}, 0, func(e Event[C]) {
-		resultp.Store(&e)
-	})
+	svc := &waitCallbackService[C]{
+		id:     id,
+		nonce:  int64(1),
+		result: resultp,
+	}
+	r.callbacks.Register(cid, svc, 1)
 	defer r.callbacks.Unregister(cid)
 
 	r.events.Enqueue(Event[T]{
@@ -147,37 +178,19 @@ func (r *reactor[T, C]) EnqueueWait(pctx context.Context, data T) (C, error) {
 	return res, ctx.Err()
 }
 
-func (r *reactor[T, C]) AddHandler(id string, selector Selector[T], workers int, handler EventHandler[T, C]) {
-	r.events.Register(id, func(e Event[T]) bool {
-		return selector(e.Data)
-	}, workers, func(e Event[T]) {
-		n := e.nonce
-		eid := e.ID
-		callbacks := r.callbacks
-		handler(e.Data, func(data C, err error) {
-			resp := Event[C]{
-				ID:    eid,
-				nonce: n + 1,
-				Data:  data,
-			}
-			if err != nil {
-				resp.Err = err
-			}
-			callbacks.Enqueue(resp)
-		})
-	})
+func (r *reactor[T, C]) AddHandler(id string, svc ReactiveService[T, C], workers int) {
+	r.events.Register(id, &reactiveServiceAdapter[T, C]{
+		svc:       svc,
+		callbacks: r.callbacks,
+	}, workers)
 }
 
 func (r *reactor[T, C]) RemoveHandler(id string) {
 	r.events.Unregister(id)
 }
 
-func (r *reactor[T, C]) AddCallback(id string, selector Selector[C], workers int, handler DemuxHandler[C]) {
-	r.callbacks.Register(id, func(e Event[C]) bool {
-		return selector(e.Data)
-	}, workers, func(e Event[C]) {
-		handler(e.Data)
-	})
+func (r *reactor[T, C]) AddCallback(id string, svc Service[Event[C]], workers int) {
+	r.callbacks.Register(id, svc, workers)
 }
 
 func (r *reactor[T, C]) RemoveCallback(id string) {
@@ -208,4 +221,19 @@ type Event[T any] struct {
 
 func (e Event[T]) Nonce() int64 {
 	return e.nonce
+}
+
+type waitCallbackService[C any] struct {
+	id    ID
+	nonce int64
+
+	result *atomic.Pointer[Event[C]]
+}
+
+func (c *waitCallbackService[C]) Select(e Event[C]) bool {
+	return bytes.Equal(e.ID, c.id) && e.nonce == c.nonce
+}
+
+func (c *waitCallbackService[C]) Handle(e Event[C]) {
+	c.result.Store(&e)
 }

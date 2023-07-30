@@ -11,12 +11,6 @@ import (
 	"github.com/amirylm/lockfree/ringbuffer"
 )
 
-// DemuxHandler is a function that handles events
-type DemuxHandler[T any] func(T)
-
-// Selector is a predicate that selects events for a given set of handlers
-type Selector[T any] func(T) bool
-
 type Service[T any] interface {
 	Select(T) bool
 	Handle(T)
