@@ -17,6 +17,11 @@ type DemuxHandler[T any] func(T)
 // Selector is a predicate that selects events for a given set of handlers
 type Selector[T any] func(T) bool
 
+type Service[T any] interface {
+	Select(T) bool
+	Handle(T)
+}
+
 // Demultiplexer provides a thread-safe, non-blocking, asynchronous event processing.
 // Using lock-free queues for events and control messages, and atomic pointers to manage states and workers.
 // This component can be used instead of go channels in cases of multiple parallel readers
@@ -28,16 +33,15 @@ type Demultiplexer[T any] interface {
 	Enqueue(T)
 	// Register registers handlers. It accepts the event selector, amount of goroutine workers
 	// that will be used to process events, and the handlers that will be called.
-	Register(id string, s Selector[T], workers int, handlers ...DemuxHandler[T])
+	Register(id string, s Service[T], workers int)
 	// Unregister unregisters handlers
 	Unregister(id string)
 }
 
 type service[T any] struct {
-	id       string
-	handlers []DemuxHandler[T]
-	selector Selector[T]
-	workers  *atomic.Int32
+	id      string
+	svc     *Service[T]
+	workers *atomic.Int32
 }
 
 type control int32
@@ -106,7 +110,6 @@ func (r *demultiplexer[T]) Close() error {
 func (r *demultiplexer[T]) Start(pctx context.Context) error {
 	ctx, cancel := context.WithCancel(pctx)
 	r.done.Store(&cancel)
-
 	services := make([]service[T], 0)
 	for ctx.Err() == nil {
 		c, ok := r.controlQ.Dequeue()
