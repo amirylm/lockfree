@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"runtime"
 	"sync/atomic"
 
@@ -86,6 +87,8 @@ func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] 
 	if el.eventQ == nil {
 		el.eventQ = queue.New(queue.WithCapacity[T](1024))
 		fmt.Printf("Event Queue created, size is: %d\n", el.eventQ.Size())
+		eventQType := reflect.TypeOf(el.eventQ)
+		fmt.Println("Type of el.eventQ:", eventQType)
 	}
 	if el.controlQ == nil {
 		el.controlQ = queue.New(queue.WithCapacity[controlEvent[T]](32))
