@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"runtime"
 	"sync/atomic"
@@ -80,12 +81,15 @@ type demultiplexer[T any] struct {
 
 func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] {
 	el := options.Apply(nil, opts...)
+	fmt.Printf("NewDemux!!!!\n")
 
 	if el.eventQ == nil {
 		el.eventQ = queue.New(queue.WithCapacity[T](1024))
+		fmt.Printf("Event Queue created, size is: %d\n", el.eventQ.Size())
 	}
 	if el.controlQ == nil {
 		el.controlQ = queue.New(queue.WithCapacity[controlEvent[T]](32))
+		fmt.Printf("Control Queue created, size is: %d\n", el.eventQ.Size())
 	}
 	el.done = atomic.Pointer[context.CancelFunc]{}
 
