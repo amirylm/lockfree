@@ -93,6 +93,8 @@ func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] 
 	if el.controlQ == nil {
 		el.controlQ = queue.New(queue.WithCapacity[controlEvent[T]](32))
 		fmt.Printf("Control Queue created, size is: %d\n", el.eventQ.Size())
+		controlQType := reflect.TypeOf(el.controlQ)
+		fmt.Println("Type of el.controlQ:", controlQType)
 	}
 	el.done = atomic.Pointer[context.CancelFunc]{}
 
