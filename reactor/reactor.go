@@ -84,11 +84,9 @@ func New[T, C any](opts ...options.Option[reactor[T, C]]) Reactor[T, C] {
 	r := options.Apply(nil, opts...)
 
 	if r.events == nil {
-		fmt.Println("New Reactor: Creating New events Demux ")
 		r.events = NewDemux[Event[T]]()
 	}
 	if r.callbacks == nil {
-		fmt.Println("New Reactor: Creating New callbacks Demux ")
 		r.callbacks = NewDemux[Event[C]]()
 	}
 	if r.tick == 0 {
