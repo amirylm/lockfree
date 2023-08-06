@@ -9,6 +9,7 @@ import (
 	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/queue"
+	"github.com/amirylm/lockfree/ringbuffer"
 )
 
 type Service[T any] interface {
@@ -82,7 +83,7 @@ func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] 
 	el := options.Apply(nil, opts...)
 
 	if el.eventQ == nil {
-		el.eventQ = queue.New(queue.WithCapacity[T](1024))
+		el.eventQ = ringbuffer.New(ringbuffer.WithCapacity[T](1024))
 	}
 	if el.controlQ == nil {
 		el.controlQ = queue.New(queue.WithCapacity[controlEvent[T]](32))
