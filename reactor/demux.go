@@ -10,7 +10,6 @@ import (
 
 	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
-	"github.com/amirylm/lockfree/queue"
 	"github.com/amirylm/lockfree/ringbuffer"
 )
 
@@ -85,7 +84,7 @@ func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] 
 	el := options.Apply(nil, opts...)
 
 	if el.eventQ == nil {
-		el.eventQ = queue.New(queue.WithCapacity[T](1024))
+		el.eventQ = ringbuffer.New(ringbuffer.WithCapacity[T](1024))
 		eventQType := reflect.TypeOf(el.eventQ)
 		fmt.Println("Type of el.eventQ:", eventQType)
 	}
