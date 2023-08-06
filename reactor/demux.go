@@ -155,7 +155,7 @@ func (r *demultiplexer[T]) Enqueue(t T) {
 func (r *demultiplexer[T]) selectServices(t T, serviceWrappers ...serviceWrapper[T]) []serviceWrapper[T] {
 	var selected []serviceWrapper[T]
 	for _, s := range serviceWrappers {
-		if s.svc.Select(t) {
+		if s.svc != nil && s.svc.Select(t) {
 			selected = append(selected, s)
 		}
 	}
