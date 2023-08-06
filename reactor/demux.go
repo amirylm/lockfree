@@ -2,7 +2,9 @@ package reactor
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"reflect"
 	"runtime"
 	"sync/atomic"
 
@@ -84,9 +86,13 @@ func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] 
 
 	if el.eventQ == nil {
 		el.eventQ = ringbuffer.New(ringbuffer.WithCapacity[T](1024))
+		eventQType := reflect.TypeOf(el.eventQ)
+		fmt.Println("Type of el.eventQ:", eventQType)
 	}
 	if el.controlQ == nil {
 		el.controlQ = queue.New(queue.WithCapacity[controlEvent[T]](32))
+		controlQType := reflect.TypeOf(el.controlQ)
+		fmt.Println("Type of el.controlQ:", controlQType)
 	}
 	el.done = atomic.Pointer[context.CancelFunc]{}
 
