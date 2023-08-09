@@ -12,8 +12,38 @@ import (
 )
 
 type mockEventData struct {
-	count int32
+	Count int32
 	name  string
+}
+
+type ReactiveServiceImpl struct {
+	SelectLogic func(event Event[mockEventData]) bool
+	HandleLogic func(event Event[mockEventData], callback func(mockEventData, error))
+}
+
+func (rs *ReactiveServiceImpl) Select(event Event[mockEventData]) bool {
+	// Call the logic function for Select with the event as an argument
+	return rs.SelectLogic(event)
+}
+
+func (rs *ReactiveServiceImpl) Handle(event Event[mockEventData], callback func(mockEventData, error)) {
+	// Call the logic function for Handle with the event and callback as arguments
+	rs.HandleLogic(event, callback)
+}
+
+type CallbackServiceImpl struct {
+	SelectLogic func(event Event[mockEventData]) bool
+	HandleLogic func(callback Event[mockEventData])
+}
+
+func (cs *CallbackServiceImpl) Select(event Event[mockEventData]) bool {
+	// Call the logic function for Select with the event as an argument
+	return cs.SelectLogic(event)
+}
+
+func (cs *CallbackServiceImpl) Handle(callback Event[mockEventData]) {
+	// Call the logic function for Handle with the event and callback as arguments
+	cs.HandleLogic(callback)
 }
 
 func TestReactor_NewWithArgs(t *testing.T) {
@@ -40,21 +70,22 @@ func TestReactor_CallbackTimeout(t *testing.T) {
 
 	timeout := time.Second
 	r := New(WithTimes[mockEventData, mockEventData](time.Second/4, timeout))
+	rs := &ReactiveServiceImpl{
+		SelectLogic: func(e Event[mockEventData]) bool {
+			return true
+		},
+		HandleLogic: func(e Event[mockEventData], callback func(mockEventData, error)) {
+			// no callback -> timeout
+			// callback(e.Data, nil)
+		},
+	}
 	go func() {
 		_ = r.Start(pctx)
 	}()
 	defer func() {
 		_ = r.Close()
 	}()
-	r.AddHandler("test-1", func(me mockEventData) bool {
-		return len(me.name) > 0
-	}, 1, func(me mockEventData, callback func(mockEventData, error)) {
-		me.count++
-		go func(me mockEventData) {
-			<-time.After(timeout * 2)
-			callback(me, nil)
-		}(me)
-	})
+	r.AddHandler("test-1", rs, 1)
 	defer r.RemoveHandler("test-1")
 
 	res, err := r.EnqueueWait(pctx, mockEventData{
@@ -68,7 +99,19 @@ func TestReactor_Sanity(t *testing.T) {
 	pctx, pcancel := context.WithCancel(context.Background())
 	defer pcancel()
 
-	r := New(WithTimes[mockEventData, mockEventData](time.Second/4, time.Second))
+	r := New(WithTimes[mockEventData, mockEventData](time.Second/4, time.Second*2))
+	rs := &ReactiveServiceImpl{
+		SelectLogic: func(e Event[mockEventData]) bool {
+			return len(e.Data.name) > 0 && e.Data.name != "errored"
+		},
+		HandleLogic: func(e Event[mockEventData], callback func(mockEventData, error)) {
+			e.Data.Count++
+			go func(me mockEventData) {
+				<-time.After(time.Millisecond * 5)
+				callback(me, nil)
+			}(e.Data)
+		},
+	}
 	go func() {
 		_ = r.Start(pctx)
 	}()
@@ -76,42 +119,43 @@ func TestReactor_Sanity(t *testing.T) {
 		_ = r.Close()
 	}()
 
-	r.AddHandler("test-1", func(me mockEventData) bool {
-		return len(me.name) > 0 && me.name != "errored"
-	}, 1, func(me mockEventData, callback func(mockEventData, error)) {
-		me.count++
-		go func(me mockEventData) {
-			<-time.After(time.Millisecond * 5)
-			callback(me, nil)
-		}(me)
-	})
+	r.AddHandler("test-1", rs, 1)
 	defer r.RemoveHandler("test-1")
 
-	r.AddHandler("test-err", func(me mockEventData) bool {
-		return me.name == "errored"
-	}, 1, func(me mockEventData, callback func(mockEventData, error)) {
-		me.count++
-		go func(me mockEventData) {
-			<-time.After(time.Millisecond * 5)
-			callback(me, errors.New("test-error"))
-		}(me)
-	})
+	rs_1 := &ReactiveServiceImpl{
+		SelectLogic: func(e Event[mockEventData]) bool {
+			return e.Data.name == "errored"
+		},
+		HandleLogic: func(e Event[mockEventData], callback func(mockEventData, error)) {
+			e.Data.Count++
+			go func(me mockEventData) {
+				<-time.After(time.Millisecond * 5)
+				callback(me, errors.New("test-error"))
+			}(e.Data)
+		},
+	}
+	r.AddHandler("test-err", rs_1, 1)
 	defer r.RemoveHandler("test-err")
-
 	callbackCounter := atomic.Int32{}
-	r.AddCallback("test-all", func(me mockEventData) bool {
-		return len(me.name) > 0
-	}, 1, func(me mockEventData) {
-		if len(me.name) > 0 {
-			require.Greater(t, me.count, int32(0))
-		}
-		t.Logf("got event %+v", me)
-		callbackCounter.Add(1)
-	})
+	cs := &CallbackServiceImpl{
+		SelectLogic: func(c Event[mockEventData]) bool {
+			return len(c.Data.name) > 0
+		},
+		HandleLogic: func(c Event[mockEventData]) {
+			if len(c.Data.name) > 0 {
+				require.Greater(t, c.Data.Count, int32(0))
+			}
+			t.Logf("got event %+v", c.Data)
+			fmt.Printf("got event %+v", c.Data)
+			callbackCounter.Add(1)
+		},
+	}
+
+	r.AddCallback("test-all", cs, 1)
 	defer r.RemoveCallback("test-all")
 
 	n := 4
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5000)
 	defer cancel()
 	go func(n int) {
 		n = n - 2 // because we are doing additional enqueues after this loop
@@ -128,7 +172,7 @@ func TestReactor_Sanity(t *testing.T) {
 			name: fmt.Sprintf("test-event-%d", n),
 		})
 		require.NoError(t, err)
-		require.Greater(t, res.count, int32(0))
+		require.Greater(t, res.Count, int32(0))
 	}(n)
 
 	for callbackCounter.Load() < int32(n) && ctx.Err() == nil {

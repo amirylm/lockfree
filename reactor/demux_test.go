@@ -1,14 +1,14 @@
 package reactor
 
 import (
-	"bytes"
 	"context"
+	"fmt"
 	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/amirylm/lockfree/ringbuffer"
+	"github.com/amirylm/lockfree/queue"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,59 +30,47 @@ func TestDemux(t *testing.T) {
 	}()
 
 	t.Run("sanity", func(t *testing.T) {
-		count, f := newCounter[[]byte]()
 		expectedCount := int32(3)
-		d.Register("test", func(v []byte) bool {
-			return bytes.Equal(v, []byte("hello"))
-		}, 0, f, f, f)
+		cs := NewCountService()
+		d.Register("test", cs, 0)
 		defer d.Unregister("test")
 
 		// double register should not work
-		d.Register("test", func(v []byte) bool {
-			return bytes.Equal(v, []byte("hello"))
-		}, 0, f)
+		d.Register("test", cs, 0)
 
 		go d.Enqueue([]byte("hello"))
 		go d.Enqueue([]byte("world"))
 		go d.Enqueue([]byte("hello-world"))
 
-		for count.Load() < expectedCount && ctx.Err() == nil {
+		for cs.getCount() < expectedCount && ctx.Err() == nil {
 			runtime.Gosched()
 		}
-		require.Equal(t, expectedCount, count.Load())
+		require.Equal(t, expectedCount, cs.getCount())
 	})
 
-	t.Run("workers", func(t *testing.T) {
-		count, f := newCounter[[]byte]()
-		expectedCount := int32(8 * 2)
-		d.Register("test-workers", func(v []byte) bool {
-			return bytes.Equal(v, []byte("hello")) || bytes.Equal(v, []byte("world"))
-		}, 2, f, f, f, f, f, f, f, f)
+	t.Run("multi-services", func(t *testing.T) {
+		cs := NewCountService()
+		expectedCount := int32(3 * 3)
+		d.Register("test-workers", cs, 2)
+		d.Register("test-workers2", cs, 2)
+		d.Register("test-workers3", cs, 2)
 		defer d.Unregister("test-workers")
+		defer d.Unregister("test-workers2")
+		defer d.Unregister("test-workers3")
 
-		count2, f2 := newCounter[[]byte]()
-		expectedCount2 := int32(4)
-		d.Register("test-workers-2", func(v []byte) bool {
-			return bytes.Equal(v, []byte("hello"))
-		}, 2, f2, f2, f2, f2)
-		defer d.Unregister("test-workers-2")
+		cs2 := NewCountService()
+		expectedCount2 := int32(3)
+		d.Register("test-workers-4", cs2, 2)
+		defer d.Unregister("test-workers-4")
 
-		go d.Enqueue([]byte("hello"))
-		go d.Enqueue([]byte("world"))
-		go d.Enqueue([]byte("hello-world"))
-
-		for count.Load() < expectedCount && ctx.Err() == nil {
+		d.Enqueue([]byte("hello"))
+		d.Enqueue([]byte("world"))
+		d.Enqueue([]byte("hello-world"))
+		for cs.getCount() < expectedCount && ctx.Err() == nil {
 			runtime.Gosched()
 		}
-		require.Equal(t, expectedCount, count.Load())
-		require.Equal(t, expectedCount2, count2.Load())
-	})
-
-	t.Run("register no handlers", func(t *testing.T) {
-		d.Register("test-workers-2", func(v []byte) bool {
-			return true
-		}, 0)
-		d.Enqueue([]byte("hello"))
+		require.Equal(t, expectedCount, cs.getCount())
+		require.Equal(t, expectedCount2, cs2.getCount())
 	})
 
 	t.Run("close", func(t *testing.T) {
@@ -92,17 +80,31 @@ func TestDemux(t *testing.T) {
 	})
 }
 
+type TestService struct{}
+
+func (bs *TestService) Select(data []byte) bool {
+	return true
+}
+
+func (bs *TestService) Handle(data []byte) {
+	fmt.Println("Handling data:", data)
+}
+
 func TestDemux_handleControl(t *testing.T) {
 	r := NewDemux(
-		WithEventQueue(ringbuffer.New(ringbuffer.WithCapacity[[]byte](32))),
-		WithControlQueue(ringbuffer.New(ringbuffer.WithCapacity[controlEvent[[]byte]](32))),
+		WithEventQueue(queue.New(queue.WithCapacity[[]byte](32))),
+		WithControlQueue(queue.New(queue.WithCapacity[controlEvent[[]byte]](32))),
 	).(*demultiplexer[[]byte])
-
+	test_service := &TestService{}
+	var atomic_workers atomic.Int32
+	var atomic_workers_2 atomic.Int32
+	atomic_workers.Store(0)
+	atomic_workers_2.Store(2)
 	tests := []struct {
 		name     string
-		existing []service[[]byte]
+		existing []serviceWrapper[[]byte]
 		events   []controlEvent[[]byte]
-		want     []service[[]byte]
+		want     []serviceWrapper[[]byte]
 	}{
 		{
 			name:     "empty",
@@ -110,20 +112,20 @@ func TestDemux_handleControl(t *testing.T) {
 			events: []controlEvent[[]byte]{
 				{
 					control: registerService,
-					svc: service[[]byte]{
-						id: "test",
-					},
+					id:      "test",
+					workers: 0,
 				},
 			},
-			want: []service[[]byte]{
+			want: []serviceWrapper[[]byte]{
 				{
-					id: "test",
+					id:      "test",
+					workers: &atomic_workers,
 				},
 			},
 		},
 		{
 			name: "unknown control",
-			existing: []service[[]byte]{
+			existing: []serviceWrapper[[]byte]{
 				{
 					id: "test",
 				},
@@ -131,12 +133,10 @@ func TestDemux_handleControl(t *testing.T) {
 			events: []controlEvent[[]byte]{
 				{
 					control: 5,
-					svc: service[[]byte]{
-						id: "test-2",
-					},
+					svc:     test_service,
 				},
 			},
-			want: []service[[]byte]{
+			want: []serviceWrapper[[]byte]{
 				{
 					id: "test",
 				},
@@ -144,44 +144,58 @@ func TestDemux_handleControl(t *testing.T) {
 		},
 		{
 			name: "register",
-			existing: []service[[]byte]{
+			existing: []serviceWrapper[[]byte]{
 				{
-					id: "test",
+					id:      "test",
+					workers: &atomic_workers,
 				},
 			},
 			events: []controlEvent[[]byte]{
 				{
+					id:      "test2",
 					control: registerService,
-					svc: service[[]byte]{
-						id: "test2",
-					},
+					svc:     test_service,
+					workers: 0,
+				},
+				{
+					id:      "test3",
+					control: registerService,
+					svc:     test_service,
+					workers: 2,
 				},
 			},
-			want: []service[[]byte]{
+			want: []serviceWrapper[[]byte]{
 				{
-					id: "test",
+					id:      "test",
+					workers: &atomic_workers,
 				},
 				{
-					id: "test2",
+					id:      "test2",
+					svc:     test_service,
+					workers: &atomic_workers,
+				},
+				{
+					id:      "test3",
+					svc:     test_service,
+					workers: &atomic_workers_2,
 				},
 			},
 		},
 		{
 			name: "double register",
-			existing: []service[[]byte]{
+			existing: []serviceWrapper[[]byte]{
 				{
 					id: "test",
 				},
 			},
 			events: []controlEvent[[]byte]{
 				{
+					id:      "test",
 					control: registerService,
-					svc: service[[]byte]{
-						id: "test",
-					},
+					svc:     test_service,
 				},
 			},
-			want: []service[[]byte]{
+			want: []serviceWrapper[[]byte]{
 				{
 					id: "test",
 				},
@@ -200,9 +214,28 @@ func TestDemux_handleControl(t *testing.T) {
 	}
 }
 
-func newCounter[T any]() (*atomic.Int32, func(T)) {
-	count := atomic.Int32{}
-	return &count, func(T) {
-		count.Add(1)
+func (cs CountService) Count() int32 {
+	cs.Counter.Add(1)
+	return cs.Counter.Load()
+}
+
+type CountService struct {
+	Counter *atomic.Int32
+}
+
+func NewCountService() *CountService {
+	return &CountService{
+		Counter: &atomic.Int32{},
 	}
+}
+
+func (cs CountService) Select(b []byte) bool {
+	cs.Count()
+	return true
+}
+
+func (cs CountService) getCount() int32 {
+	return cs.Counter.Load()
+}
+func (cs CountService) Handle(b []byte) {
 }
