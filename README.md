@@ -27,7 +27,7 @@ These lock-free data structures are designed to provide concurrent access withou
 ### Extras
 
 * [x] Reactor - lock-free reactor that provides thread-safe, non-blocking, asynchronous event processing. \
-It uses lock-free queues for events and control messages.
+It uses a demultiplexer that is based on lock-free queues for events and control messages.
 
 ## Usage
 

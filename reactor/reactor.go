@@ -1,88 +1,128 @@
 package reactor
 
 import (
+	"bytes"
 	"context"
-	"runtime"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"math/rand"
 	"sync/atomic"
+	"time"
 
 	"github.com/amirylm/go-options"
-	"github.com/amirylm/lockfree/core"
-	"github.com/amirylm/lockfree/ringbuffer"
 )
 
-// Handler is a function that handles events
-type Handler[T any] func(T)
-
-// Selector is a predicate that selects events for a given set of handlers
-type Selector[T any] func(T) bool
-
-// Reactor provides a thread-safe, non-blocking, asynchronous event processing.
-// It uses lock-free queues for events and control messages.
-type Reactor[T any] interface {
-	// Start starts the event loop
-	Start(context.Context) error
-	// Enqueue adds a new event to the event queue
-	Enqueue(T)
-	// Register registers handlers. It accepts the event selector, amount of goroutine workers
-	// that will be used to process events, and the handlers that will be called.
-	Register(id string, s Selector[T], workers int, handlers ...Handler[T])
-	// Unregister unregisters handlers
-	Unregister(id string)
+type ReactiveService[T, C any] interface {
+	Select(Event[T]) bool
+	Handle(Event[T], func(C, error))
 }
 
-type service[T any] struct {
-	id       string
-	handlers []Handler[T]
-	selector Selector[T]
-	workers  int
+type reactiveServiceAdapter[E, C any] struct {
+	svc       ReactiveService[E, C]
+	callbacks Demultiplexer[Event[C]]
 }
 
-type control int32
-
-const (
-	registerService control = iota
-	unregisterService
-)
-
-type controlEvent[T any] struct {
-	control control
-	svc     service[T]
+func (adapter *reactiveServiceAdapter[T, C]) Select(e Event[T]) bool {
+	return adapter.svc.Select(e)
 }
 
-func WithEventQueue[T any](q core.Queue[T]) options.Option[reactor[T]] {
-	return func(r *reactor[T]) {
-		r.eventQ = q
+func (adapter *reactiveServiceAdapter[T, C]) Handle(e Event[T]) {
+	n := e.nonce
+	eid := e.ID
+	adapter.svc.Handle(e, func(data C, err error) {
+		resp := Event[C]{
+			ID:    eid,
+			nonce: n + 1,
+			Data:  data,
+		}
+		if err != nil {
+			resp.Err = err
+		}
+		adapter.callbacks.Enqueue(resp)
+	})
+}
+
+type Reactor[E, C any] interface {
+	io.Closer
+	Start(pctx context.Context) error
+
+	Enqueue(events ...E)
+	EnqueueWait(context.Context, E) (C, error)
+
+	AddHandler(string, ReactiveService[E, C], int)
+	RemoveHandler(string)
+
+	AddCallback(string, Service[Event[C]], int)
+	RemoveCallback(string)
+}
+
+// EventHandler is a function that handles events, it accepts a callback function as a second parameter.
+// The callback function is expected to be called once the event was processed
+type EventHandler[T, C any] func(T, func(C, error))
+
+func WithEventsDemux[T, C any](d Demultiplexer[Event[T]]) options.Option[reactor[T, C]] {
+	return func(r *reactor[T, C]) {
+		r.events = d
 	}
 }
 
-func WithControlQueue[T any](q core.Queue[controlEvent[T]]) options.Option[reactor[T]] {
-	return func(r *reactor[T]) {
-		r.controlQ = q
+func WithCallbacksDemux[T, C any](d Demultiplexer[Event[C]]) options.Option[reactor[T, C]] {
+	return func(r *reactor[T, C]) {
+		r.callbacks = d
 	}
 }
 
-type reactor[T any] struct {
-	eventQ   core.Queue[T]
-	controlQ core.Queue[controlEvent[T]]
+func WithTimes[T, C any](tick, timeout time.Duration) options.Option[reactor[T, C]] {
+	return func(r *reactor[T, C]) {
+		r.tick = tick
+		r.timeout = timeout
+	}
+}
+
+func New[T, C any](opts ...options.Option[reactor[T, C]]) Reactor[T, C] {
+	r := options.Apply(nil, opts...)
+
+	if r.events == nil {
+		r.events = NewDemux[Event[T]]()
+	}
+	if r.callbacks == nil {
+		r.callbacks = NewDemux[Event[C]]()
+	}
+	if r.tick == 0 {
+		r.tick = time.Second / 2
+	}
+	if r.timeout == 0 {
+		r.timeout = time.Second * 10
+	}
+
+	return r
+}
+
+type reactor[T, C any] struct {
+	events        Demultiplexer[Event[T]]
+	callbacks     Demultiplexer[Event[C]]
+	tick, timeout time.Duration
 
 	done atomic.Pointer[context.CancelFunc]
 }
 
-func New[T any](opts ...options.Option[reactor[T]]) *reactor[T] {
-	el := options.Apply(nil, opts...)
-
-	if el.eventQ == nil {
-		el.eventQ = ringbuffer.New(ringbuffer.WithCapacity[T](256), ringbuffer.WithOverride[T]())
-	}
-	if el.controlQ == nil {
-		el.controlQ = ringbuffer.New(ringbuffer.WithCapacity[controlEvent[T]](32))
-	}
-	el.done = atomic.Pointer[context.CancelFunc]{}
-
-	return el
+func (r *reactor[T, C]) genID(T) ID {
+	return []byte(fmt.Sprintf("%04d-%08d-%04d",
+		rand.Intn(9999), rand.Intn(99999999), rand.Intn(9999)))
 }
 
-func (r *reactor[T]) Close() error {
+func (r *reactor[T, C]) Start(pctx context.Context) error {
+	ctx, cancel := context.WithCancel(pctx)
+	defer cancel()
+	r.done.Store(&cancel)
+	go func() {
+		_ = r.callbacks.Start(ctx)
+	}()
+	return r.events.Start(ctx)
+}
+
+func (r *reactor[T, C]) Close() error {
 	cancel := r.done.Load()
 	if cancel == nil {
 		return nil
@@ -92,97 +132,108 @@ func (r *reactor[T]) Close() error {
 	return nil
 }
 
-func (r *reactor[T]) Start(pctx context.Context) error {
-	ctx, cancel := context.WithCancel(pctx)
-	r.done.Store(&cancel)
-
-	var services []service[T]
-	for ctx.Err() == nil {
-		c, ok := r.controlQ.Dequeue()
-		if ok {
-			services = r.handleControl(services, c)
-			continue
-		}
-		e, ok := r.eventQ.Dequeue()
-		if ok {
-			go r.handleEvent(e, services...)
-			continue
-		}
-		runtime.Gosched()
+func (r *reactor[T, C]) Enqueue(events ...T) {
+	for _, data := range events {
+		r.events.Enqueue(Event[T]{
+			ID:    r.genID(data),
+			nonce: 0,
+			Data:  data,
+		})
 	}
-
-	return ctx.Err()
 }
 
-func (r *reactor[T]) Register(serviceID string, selector Selector[T], workers int, handlers ...Handler[T]) {
-	r.controlQ.Enqueue(controlEvent[T]{
-		control: registerService,
-		svc: service[T]{
-			id:       serviceID,
-			handlers: handlers,
-			selector: selector,
-			workers:  workers,
-		},
+func (r *reactor[T, C]) EnqueueWait(pctx context.Context, data T) (C, error) {
+	ctx, cancel := context.WithTimeout(pctx, r.timeout)
+	defer cancel()
+
+	resultp := &atomic.Pointer[Event[C]]{}
+	nonce := int64(1)
+	id := r.genID(data)
+
+	cid := fmt.Sprintf("%x:%d", id, nonce)
+	svc := &waitCallbackService[C]{
+		id:     id,
+		nonce:  int64(1),
+		result: resultp,
+	}
+	r.callbacks.Register(cid, svc, 1)
+	defer r.callbacks.Unregister(cid)
+
+	r.events.Enqueue(Event[T]{
+		ID:    id,
+		nonce: nonce - 1,
+		Data:  data,
 	})
-}
 
-func (r *reactor[T]) Unregister(serviceID string) {
-	r.controlQ.Enqueue(controlEvent[T]{
-		control: unregisterService,
-		svc: service[T]{
-			id: serviceID,
-		},
-	})
-}
-
-func (r *reactor[T]) Enqueue(t T) {
-	r.eventQ.Enqueue(t)
-}
-
-// handleEvent handles an event by calling the appropriate handlers.
-// Runs in an event thread, and might spawn worker threads.
-func (r *reactor[T]) handleEvent(t T, services ...service[T]) {
-	for _, svc := range services {
-		if svc.selector(t) {
-			workers := atomic.Int32{}
-			workers.Store(int32(svc.workers))
-			for _, h := range svc.handlers {
-				if workers.Load() == 0 {
-					// if there are no available workers, run on the event thread
-					h(t)
-					continue
-				}
-				workers.Add(-1)
-				// run on a worker thread
-				go func(h Handler[T], t T) {
-					defer workers.Add(1)
-					h(t)
-				}(h, t)
-			}
-		}
+	result := resultp.Load()
+	for ctx.Err() == nil && result == nil {
+		time.Sleep(r.tick)
+		result = resultp.Load()
 	}
+
+	if result != nil {
+		return result.Data, result.Err
+	}
+	var res C
+	return res, ctx.Err()
 }
 
-func (r *reactor[T]) handleControl(services []service[T], ce controlEvent[T]) []service[T] {
-	switch ce.control {
-	case registerService:
-		for _, svc := range services {
-			if svc.id == ce.svc.id {
-				return services
-			}
-		}
-		return append(services, ce.svc)
-	case unregisterService:
-		updated := make([]service[T], len(services))
-		i := 0
-		for _, svc := range services {
-			if svc.id != ce.svc.id {
-				updated[i] = svc
-				i++
-			}
-		}
-		return updated[:i]
-	default:
-		return services
+func (r *reactor[T, C]) AddHandler(id string, svc ReactiveService[T, C], workers int) {
+	r.events.Register(id, &reactiveServiceAdapter[T, C]{
+		svc:       svc,
+		callbacks: r.callbacks,
+	}, workers)
+}
+
+func (r *reactor[T, C]) RemoveHandler(id string) {
+	r.events.Unregister(id)
+}
+
+func (r *reactor[T, C]) AddCallback(id string, svc Service[Event[C]], workers int) {
+	r.callbacks.Register(id, svc, workers)
+}
+
+func (r *reactor[T, C]) RemoveCallback(id string) {
+	r.callbacks.Unregister(id)
+}
+
+// ID is the ID used for events
+type ID []byte
+
+func (id ID) String() string {
+	return hex.EncodeToString(id)
+}
+
+func IDFromString(idstr string) ID {
+	id, err := hex.DecodeString(idstr)
+	if err != nil {
+		return nil
 	}
+	return id
+}
+
+type Event[T any] struct {
+	ID    ID
+	nonce int64
+	Data  T
+	Err   error
+}
+
+func (e Event[T]) Nonce() int64 {
+	return e.nonce
+}
+
+type waitCallbackService[C any] struct {
+	id    ID
+	nonce int64
+
+	result *atomic.Pointer[Event[C]]
+}
+
+func (c *waitCallbackService[C]) Select(e Event[C]) bool {
+	return bytes.Equal(e.ID, c.id) && e.nonce == c.nonce
+}
+
+func (c *waitCallbackService[C]) Handle(e Event[C]) {
+	c.result.Store(&e)
 }
