@@ -44,7 +44,7 @@ func TestStack_Concurrency_Bytes(t *testing.T) {
 
 func TestStack_Range(t *testing.T) {
 	nitems := 10
-	s := New[int](WithCapacity[int](nitems * 2)).(*LLStack[int])
+	s := New[int](core.WithCapacity(nitems * 2)).(*LLStack[int])
 	for i := 0; i < nitems; i++ {
 		require.True(t, s.Push(i+1))
 	}

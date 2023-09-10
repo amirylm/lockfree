@@ -28,6 +28,7 @@ These lock-free data structures are designed to provide concurrent access withou
 
 * [x] Reactor - lock-free reactor that provides thread-safe, non-blocking, asynchronous event processing. \
 It uses a demultiplexer that is based on lock-free queues for events and control messages.
+* [x] Pool Wrapper - wraps a function that is using some pooled resource.
 
 ## Usage
 
@@ -45,11 +46,11 @@ func main() {
     ctx, cancel := context.WithCancel(context.Backgorund())
     defer cancel()
 
-    q := ringbuffer.New[[]byte](256)
+    q := ringbuffer.New[[]byte](core.WithCapacity(256))
 
-    core.Enqueue(ctx, q, []byte("hello ring buffer"))
+    q.Enqueue([]byte("hello ring buffer"))
 
-    val, _ := core.Dequeue(ctx, q)
+    val, _ := q.Dequeue()
     fmt.Println(val)
 }
 ```

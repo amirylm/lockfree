@@ -7,25 +7,16 @@ import (
 	"github.com/amirylm/lockfree/core"
 )
 
-func WithCapacity[Value any](c int) options.Option[RingBuffer[Value]] {
-	return func(rb *RingBuffer[Value]) {
-		rb.capacity = uint32(c)
-	}
-}
-
-func WithOverride[Value any]() options.Option[RingBuffer[Value]] {
-	return func(rb *RingBuffer[Value]) {
-		rb.override = true
-	}
-}
-
 // New creates a new RingBuffer
-func New[Value any](opts ...options.Option[RingBuffer[Value]]) core.Queue[Value] {
+func New[Value any](opts ...options.Option[core.Options]) core.Queue[Value] {
+	o := options.Apply(nil, opts...)
+
 	rb := &RingBuffer[Value]{
-		state: atomic.Uint64{},
+		state:    atomic.Uint64{},
+		capacity: uint32(o.Capacity()),
+		override: o.Override(),
 	}
 
-	_ = options.Apply(rb, opts...)
 	rb.elements = make([]*atomic.Pointer[Value], rb.capacity)
 
 	rb.state.Store(new(ringBufferState).Uint64())

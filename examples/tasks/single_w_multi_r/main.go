@@ -33,9 +33,9 @@ func main() {
 	var c core.Queue[Task]
 	switch ds {
 	case "ringbuffer":
-		c = ringbuffer.New[Task](ringbuffer.WithCapacity[Task](1001))
+		c = ringbuffer.New[Task](core.WithCapacity(1001))
 	case "queue":
-		c = queue.New[Task](queue.WithCapacity[Task](1001))
+		c = queue.New[Task](core.WithCapacity(1001))
 	case "stack":
 		c = stack.NewQueueAdapter[Task](1001)
 	default:

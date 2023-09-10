@@ -7,18 +7,12 @@ import (
 	"github.com/amirylm/lockfree/core"
 )
 
-func WithCapacity[Value any](c int) options.Option[RingBufferLock[Value]] {
-	return func(rb *RingBufferLock[Value]) {
-		rb.capacity = uint32(c)
-	}
-}
-
-func New[Value any](opts ...options.Option[RingBufferLock[Value]]) core.Queue[Value] {
+func New[Value any](opts ...options.Option[core.Options]) core.Queue[Value] {
+	o := options.Apply(nil, opts...)
 	rb := &RingBufferLock[Value]{
-		lock: &sync.RWMutex{},
+		lock:     &sync.RWMutex{},
+		capacity: uint32(o.Capacity()),
 	}
-
-	options.Apply(rb, opts...)
 	rb.data = make([]Value, rb.capacity)
 
 	return rb

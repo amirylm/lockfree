@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/amirylm/lockfree/core"
 	"github.com/amirylm/lockfree/queue"
 	"github.com/stretchr/testify/require"
 )
@@ -92,8 +93,7 @@ func (bs *TestService) Handle(data []byte) {
 
 func TestDemux_handleControl(t *testing.T) {
 	r := NewDemux(
-		WithEventQueue(queue.New(queue.WithCapacity[[]byte](32))),
-		WithControlQueue(queue.New(queue.WithCapacity[controlEvent[[]byte]](32))),
+		WithEventQueue(queue.New[[]byte](core.WithCapacity(32))),
 	).(*demultiplexer[[]byte])
 	test_service := &TestService{}
 	var atomic_workers atomic.Int32

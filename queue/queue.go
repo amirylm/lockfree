@@ -15,24 +15,20 @@ type element[Value any] struct {
 // Queue is a lock-free queue implemented with linked list,
 // based on atomic compare-and-swap operations.
 type Queue[Value any] struct {
-	head     atomic.Pointer[element[Value]]
-	tail     atomic.Pointer[element[Value]]
-	size     atomic.Int32
+	head atomic.Pointer[element[Value]]
+	tail atomic.Pointer[element[Value]]
+	size atomic.Int32
+
 	capacity int32
 }
 
-func WithCapacity[Value any](c int) options.Option[Queue[Value]] {
-	return func(q *Queue[Value]) {
-		q.capacity = int32(c)
-	}
-}
-
-func New[Value any](opts ...options.Option[Queue[Value]]) core.Queue[Value] {
-	var e = element[Value]{}
+func New[Value any](opts ...options.Option[core.Options]) core.Queue[Value] {
+	o := options.Apply(nil, opts...)
 	q := &Queue[Value]{
-		size: atomic.Int32{},
+		size:     atomic.Int32{},
+		capacity: o.Capacity(),
 	}
-	_ = options.Apply(q, opts...)
+	var e = element[Value]{}
 	q.head.Store(&e)
 	q.tail.Store(&e)
 	return q
@@ -65,6 +61,9 @@ func (q *Queue[Value]) Dequeue() (Value, bool) {
 		h := q.head.Load()
 		next := h.next.Load()
 		if h != t { // element exists
+			if next == nil {
+				return v, false
+			}
 			v := next.value
 			if q.head.CompareAndSwap(h, next) { // set head to next
 				q.size.Add(-1)

@@ -16,25 +16,25 @@ func BenchEnqueueDequeueBytes(b *testing.B, c, r, w int) {
 	tests := []concurrentTestCase[[]byte]{
 		{
 			"ring buffer queue",
-			ringbuffer.New[[]byte](ringbuffer.WithCapacity[[]byte](c)),
+			ringbuffer.New[[]byte](core.WithCapacity(c)),
 			r,
 			w,
 		},
 		{
 			"ring buffer queue (lock)",
-			rb_lock.New[[]byte](rb_lock.WithCapacity[[]byte](c)),
+			rb_lock.New[[]byte](core.WithCapacity(c)),
 			r,
 			w,
 		},
 		{
 			"linked list queue",
-			queue.New[[]byte](queue.WithCapacity[[]byte](c)),
+			queue.New[[]byte](core.WithCapacity(c)),
 			r,
 			w,
 		},
 		{
 			"go chan",
-			gochan.New[[]byte](gochan.WithCapacity[[]byte](c)),
+			gochan.New[[]byte](core.WithCapacity(c)),
 			r,
 			w,
 		},
@@ -55,25 +55,25 @@ func BenchEnqueueDequeueInt(b *testing.B, c, r, w int) {
 	tests := []concurrentTestCase[int]{
 		{
 			"ring buffer queue",
-			ringbuffer.New[int](ringbuffer.WithCapacity[int](c)),
+			ringbuffer.New[int](core.WithCapacity(c)),
 			r,
 			w,
 		},
 		{
 			"ring buffer queue (lock)",
-			rb_lock.New[int](rb_lock.WithCapacity[int](c)),
+			rb_lock.New[int](core.WithCapacity(c)),
 			r,
 			w,
 		},
 		{
 			"linked list queue",
-			queue.New[int](queue.WithCapacity[int](c)),
+			queue.New[int](core.WithCapacity(c)),
 			r,
 			w,
 		},
 		{
 			"go chan",
-			gochan.New[int](gochan.WithCapacity[int](c)),
+			gochan.New[int](core.WithCapacity(c)),
 			r,
 			w,
 		},

@@ -1,7 +1,6 @@
 package stack
 
 import (
-	"github.com/amirylm/go-options"
 	"github.com/amirylm/lockfree/core"
 )
 
@@ -9,15 +8,9 @@ type QueueAdapter[T any] struct {
 	s core.Stack[T]
 }
 
-func WithCapacity[Value any](c int) options.Option[LLStack[Value]] {
-	return func(s *LLStack[Value]) {
-		s.capacity = int32(c)
-	}
-}
-
 func NewQueueAdapter[T any](capacity int) core.Queue[T] {
 	return &QueueAdapter[T]{
-		s: New[T](WithCapacity[T](capacity)),
+		s: New[T](core.WithCapacity(capacity)),
 	}
 }
 
