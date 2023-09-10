@@ -61,6 +61,9 @@ func (q *Queue[Value]) Dequeue() (Value, bool) {
 		h := q.head.Load()
 		next := h.next.Load()
 		if h != t { // element exists
+			if next == nil {
+				return v, false
+			}
 			v := next.value
 			if q.head.CompareAndSwap(h, next) { // set head to next
 				q.size.Add(-1)
