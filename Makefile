@@ -14,10 +14,13 @@ fmt:
 	@go fmt ./...
 
 test:
-	@go test -v -race -timeout=10m ${TEST_PKG} 
+	@go test -v -race -timeout=10m `go list ./... | grep -v -E "benchmark|examples"`
+
+test-pkg:
+	@go test -v -race -timeout=10m ${TEST_PKG}
 
 test-cov:
-	@go test -v -race -timeout=10m -coverprofile cover.out ./stack ./ringbuffer ./queue ./reactor ./pool
+	@go test -v -race -timeout=10m -coverprofile cover.out `go list ./... | grep -v -E "benchmark|examples"`
 
 test-open-cov:
 	@make test-cov
