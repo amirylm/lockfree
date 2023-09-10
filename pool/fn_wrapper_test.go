@@ -35,6 +35,7 @@ func TestPoolWrapper(t *testing.T) {
 	}()
 	input, expected := bytesInput()
 	require.Equal(t, expected, sha256Hash(input))
+	require.Equal(t, expected, sha256Hash(input))
 
 	<-done
 }
