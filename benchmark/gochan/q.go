@@ -10,16 +10,11 @@ type GoChanQ[Value any] struct {
 	capacity int
 }
 
-func WithCapacity[Value any](c int) options.Option[GoChanQ[Value]] {
-	return func(q *GoChanQ[Value]) {
-		q.capacity = c
+func New[Value any](opts ...options.Option[core.Options]) core.Queue[Value] {
+	o := options.Apply(nil, opts...)
+	gc := &GoChanQ[Value]{
+		capacity: int(o.Capacity()),
 	}
-}
-
-func New[Value any](opts ...options.Option[GoChanQ[Value]]) core.Queue[Value] {
-	gc := &GoChanQ[Value]{}
-
-	_ = options.Apply(gc, opts...)
 	gc.cn = make(chan Value, gc.capacity)
 
 	return gc

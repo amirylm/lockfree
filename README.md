@@ -45,11 +45,11 @@ func main() {
     ctx, cancel := context.WithCancel(context.Backgorund())
     defer cancel()
 
-    q := ringbuffer.New[[]byte](256)
+    q := ringbuffer.New[[]byte](core.WithCapacity(256))
 
-    core.Enqueue(ctx, q, []byte("hello ring buffer"))
+    q.Enqueue([]byte("hello ring buffer"))
 
-    val, _ := core.Dequeue(ctx, q)
+    val, _ := q.Dequeue()
     fmt.Println(val)
 }
 ```

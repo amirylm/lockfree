@@ -23,12 +23,14 @@ type LLStack[Value any] struct {
 }
 
 // New creates a new lock-free stack.
-func New[Value any](opts ...options.Option[LLStack[Value]]) core.Stack[Value] {
+func New[Value any](opts ...options.Option[core.Options]) core.Stack[Value] {
+	o := options.Apply(nil, opts...)
 	s := &LLStack[Value]{
-		head: atomic.Pointer[element[Value]]{},
-		size: atomic.Int32{},
+		head:     atomic.Pointer[element[Value]]{},
+		size:     atomic.Int32{},
+		capacity: o.Capacity(),
 	}
-	_ = options.Apply(s, opts...)
+
 	return s
 }
 

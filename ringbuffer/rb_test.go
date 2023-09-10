@@ -12,7 +12,7 @@ import (
 )
 
 func TestRingBuffer_Sanity_Int(t *testing.T) {
-	factory := func() core.Queue[int] { return New(WithCapacity[int](32)) }
+	factory := func() core.Queue[int] { return New[int](core.WithCapacity(32)) }
 	utils.SanityTest(t, 32, factory, func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
@@ -28,7 +28,7 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 5, 5
 
-	factory := func() core.Queue[([]byte)] { return New(WithCapacity[([]byte)](32)) }
+	factory := func() core.Queue[([]byte)] { return New[([]byte)](core.WithCapacity(32)) }
 	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, factory, func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
@@ -42,7 +42,7 @@ func TestRingBuffer_Concurrency_Bytes(t *testing.T) {
 }
 
 func TestRingBuffer_Overflow(t *testing.T) {
-	rb := New(WithCapacity[int](128), WithOverride[int]())
+	rb := New[int](core.WithCapacity(128), core.WithOverride(true))
 	overflow := 5
 	n := 128
 	require.True(t, rb.Empty(), "should be empty")

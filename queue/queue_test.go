@@ -14,7 +14,7 @@ import (
 )
 
 func TestLinkedListQueue_Sanity_Int(t *testing.T) {
-	factory := func() core.Queue[int] { return New(WithCapacity[int](32)) }
+	factory := func() core.Queue[int] { return New[int](core.WithCapacity(32)) }
 	utils.SanityTest(t, 32, factory, func(i int) int {
 		return i + 1
 	}, func(i, v int) bool {
@@ -30,7 +30,7 @@ func TestLinkedListQueue_Concurrency_Bytes(t *testing.T) {
 	c := 128
 	w, r := 2, 2
 
-	factory := func() core.Queue[[]byte] { return New(WithCapacity[[]byte](128)) }
+	factory := func() core.Queue[[]byte] { return New[[]byte](core.WithCapacity(128)) }
 	reads, writes := utils.ConcurrencyTest(t, pctx, c, nmsgs, r, w, factory, func(i int) []byte {
 		return append([]byte{1, 1}, big.NewInt(int64(i)).Bytes()...)
 	}, func(i int, v []byte) bool {
@@ -45,13 +45,13 @@ func TestLinkedListQueue_Concurrency_Bytes(t *testing.T) {
 
 func TestLinkedListQueue_Range(t *testing.T) {
 	numitems := 10
-	q := New[int](WithCapacity[int](numitems)).(*Queue[int])
+	q := New[int](core.WithCapacity(numitems)).(*Queue[int])
 	for i := 0; i < numitems; i++ {
 		require.True(t, q.Enqueue(i+1))
 	}
 
 	// empty queue with head artificially set to nil for testing purposes
-	eq := New[int](WithCapacity[int](0)).(*Queue[int])
+	eq := New[int](core.WithCapacity(0)).(*Queue[int])
 	head := atomic.LoadPointer((*unsafe.Pointer)(unsafe.Pointer(&eq.head)))
 	atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&eq.head)), head, nil)
 

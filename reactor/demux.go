@@ -32,6 +32,30 @@ type Demultiplexer[T any] interface {
 	Unregister(id string)
 }
 
+type DemuxOptions[T any] struct {
+	eventQ        core.Queue[T]
+	ctrlQCapacity int
+	cloneFn       func(T) T
+}
+
+func WithEventQueue[T any](q core.Queue[T]) options.Option[DemuxOptions[T]] {
+	return func(r *DemuxOptions[T]) {
+		r.eventQ = q
+	}
+}
+
+func WithControlQueueCapcity[T any](capacity int) options.Option[DemuxOptions[T]] {
+	return func(r *DemuxOptions[T]) {
+		r.ctrlQCapacity = capacity
+	}
+}
+
+func WithCloneFn[T any](f func(T) T) options.Option[DemuxOptions[T]] {
+	return func(r *DemuxOptions[T]) {
+		r.cloneFn = f
+	}
+}
+
 type serviceWrapper[T any] struct {
 	id      string
 	svc     Service[T]
@@ -52,24 +76,6 @@ type controlEvent[T any] struct {
 	workers int32
 }
 
-func WithEventQueue[T any](q core.Queue[T]) options.Option[demultiplexer[T]] {
-	return func(r *demultiplexer[T]) {
-		r.eventQ = q
-	}
-}
-
-func WithControlQueue[T any](q core.Queue[controlEvent[T]]) options.Option[demultiplexer[T]] {
-	return func(r *demultiplexer[T]) {
-		r.controlQ = q
-	}
-}
-
-func WithCloneFn[T any](f func(T) T) options.Option[demultiplexer[T]] {
-	return func(r *demultiplexer[T]) {
-		r.cloneFn = f
-	}
-}
-
 type demultiplexer[T any] struct {
 	eventQ   core.Queue[T]
 	controlQ core.Queue[controlEvent[T]]
@@ -78,16 +84,22 @@ type demultiplexer[T any] struct {
 	cloneFn func(T) T
 }
 
-func NewDemux[T any](opts ...options.Option[demultiplexer[T]]) Demultiplexer[T] {
-	el := options.Apply(nil, opts...)
+func NewDemux[T any](opts ...options.Option[DemuxOptions[T]]) Demultiplexer[T] {
+	o := options.Apply(nil, opts...)
 
-	if el.eventQ == nil {
-		el.eventQ = queue.New(queue.WithCapacity[T](1024))
+	if o.eventQ == nil {
+		o.eventQ = queue.New[T](core.WithCapacity(1024))
 	}
-	if el.controlQ == nil {
-		el.controlQ = queue.New(queue.WithCapacity[controlEvent[T]](32))
+	if o.ctrlQCapacity == 0 {
+		o.ctrlQCapacity = 32
 	}
-	el.done = atomic.Pointer[context.CancelFunc]{}
+
+	el := &demultiplexer[T]{
+		eventQ:   o.eventQ,
+		controlQ: queue.New[controlEvent[T]](core.WithCapacity(o.ctrlQCapacity)),
+		done:     atomic.Pointer[context.CancelFunc]{},
+		cloneFn:  o.cloneFn,
+	}
 
 	return el
 }
