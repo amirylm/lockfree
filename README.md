@@ -28,6 +28,7 @@ These lock-free data structures are designed to provide concurrent access withou
 
 * [x] Reactor - lock-free reactor that provides thread-safe, non-blocking, asynchronous event processing. \
 It uses a demultiplexer that is based on lock-free queues for events and control messages.
+* [x] Pool Wrapper - wraps a function that is using some pooled resource.
 
 ## Usage
 
