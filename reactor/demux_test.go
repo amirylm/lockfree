@@ -88,7 +88,7 @@ func (bs *TestService) Select(data []byte) bool {
 }
 
 func (bs *TestService) Handle(data []byte) {
-	fmt.Println("Handling data:", data)
+	fmt.Println("Handling data:", string(data))
 }
 
 func TestDemux_handleControl(t *testing.T) {

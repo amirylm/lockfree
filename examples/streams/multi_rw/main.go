@@ -41,7 +41,11 @@ func main() {
 			return
 		}
 
-		defer res.Body.Close()
+		defer func() {
+			if err := res.Body.Close(); err != nil {
+				fmt.Println("Error closing body:", err)
+			}
+		}()
 		decoder := json.NewDecoder(res.Body)
 		var tc []streams.TickerData
 		err = decoder.Decode(&tc)
