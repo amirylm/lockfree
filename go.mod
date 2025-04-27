@@ -1,6 +1,6 @@
 module github.com/amirylm/lockfree
 
-go 1.24.2
+go 1.24
 
 require (
 	github.com/amirylm/go-options v0.0.2
